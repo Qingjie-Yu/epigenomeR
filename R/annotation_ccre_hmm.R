@@ -29,7 +29,7 @@ annotation_ccre_hmm <- function(row_cluster_file_path, out_dir, ref_genome = "hg
 
   # split pos
   biclustering_result <- read.table(row_cluster_file_path, header = TRUE, sep = "\t")
-  biclustering_result <- biclustering_result[!biclustering_result$label %in% c("Epitope_Specific", "Background"), ]
+  # biclustering_result <- biclustering_result[!biclustering_result$label %in% c("Epitope_Specific", "Background"), ]
   pos_df <- do.call(rbind, (strsplit(biclustering_result$feature, "_")))
   colnames(pos_df) <- c("seqnames", "start", "end")
   biclustering_result <- cbind(pos_df, biclustering_result)
@@ -61,8 +61,6 @@ annotation_ccre_hmm <- function(row_cluster_file_path, out_dir, ref_genome = "hg
     "N",
     "O",
     "Epitope_Specific",
-    "non-target_specific",
-    "background",
     "Background"
   )
 

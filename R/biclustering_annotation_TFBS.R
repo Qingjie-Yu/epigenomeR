@@ -7,6 +7,7 @@
 # Parameter: row_cluster_file_path: Path to tab-delimited file with clustered regions. Required columns: 'feature' (format: chr_start_end), 'label' (cluster assignment)
 #            out_dir: Output directory for all results (default: "./")
 #            ref_genome: Reference genome version (default: "hg38"). Options: "hg38", "hg19", "mm10", "mm39"
+#   control_rep: Multiplier for control region generation (default: 1). E.g., control_rep=2 generates 2x as many control regions as input regions
 #            regions: Region size in base pairs for analysis (default: 800). All regions resized to this width centered on original midpoint
 #            plot: Whether to generate heatmaps (default: TRUE). If FALSE, only performs enrichment analysis
 # Output: Control regions BED file: all_controls.bed
@@ -15,7 +16,7 @@
 #         log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
 #         FDR matrix: FDR.csv (if plot=TRUE)
 
-biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", regions = 800, plot = TRUE) {
+biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", control_rep = 1, regions = 800, plot = TRUE) {
     # Load packages
     suppressPackageStartupMessages({
         library(data.table)
@@ -41,7 +42,7 @@ biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", 
     control_grl <- lapply(names(row_grl), function(label) {
         cat("\n", "Processing cluster:", label, "with", length(row_grl[[label]]), "regions\n")
         target_gr <- row_grl[[label]]
-        control_gr <- get_matched_control(target_gr = target_gr, ref_genome = ref_genome, style = style, n_rep = 1, regions = regions)
+        control_gr <- get_matched_control(target_gr = target_gr, ref_genome = ref_genome, style = style, n_rep = control_rep, regions = regions)
         return(control_gr)
     })
     names(control_grl) <- names(row_grl)
