@@ -142,6 +142,11 @@ get_nearest_gene <- function(query_gr, genes_gr) {
 # Parameters:
 #   target_gr: GRanges object of target peak regions
 #   ref_genome: Reference genome version ("hg38" or "mm10")
+#   ref_source: Gene annotation source used to define gene models and TSS
+#               coordinates. Supported options are:
+#               - "knownGene": Uses the UCSC knownGene annotation obtained via
+#                 the Bioconductor package TxDb.Hsapiens.UCSC.hg38.knownGene
+#               - "GENCODE": Uses GENCODE gene annotations (GENCODE v49).
 #   style: Chromosome naming style (default: "UCSC")
 #   n_rep: Number of control regions to generate per target peak
 #   regions: Width of control regions in base pairs
@@ -152,28 +157,38 @@ get_nearest_gene <- function(query_gr, genes_gr) {
 # Returns:
 #   A GRanges object containing all control regions
 
-get_matched_control <- function(target_gr, ref_genome = "hg38", style = "UCSC", n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
-    library(GenomicRanges)
-    library(dplyr)
-
+get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "knownGene", style = "UCSC", n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
     set.seed(seed)
 
-    if (ref_genome == "hg38") {
-        suppressPackageStartupMessages({
-            library(BSgenome.Hsapiens.UCSC.hg38)
-            library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-        })
-        bs   <- BSgenome.Hsapiens.UCSC.hg38
-        txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
-    } else if (ref_genome == "mm10") {
-        suppressPackageStartupMessages({
-            library(BSgenome.Mmusculus.UCSC.mm10)
-            library(TxDb.Mmusculus.UCSC.mm10.knownGene)
-        })
-        bs   <- BSgenome.Mmusculus.UCSC.mm10
-        txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
-    } else {
+    if (!ref_genome %in% names(genome_config)) {
         stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
+    }
+    
+    genome_config <- list(
+    hg38 = list(
+        bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
+        txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
+        gencode_file = "GENCODE_v49_hg38.rds"
+    ),
+    mm10 = list(
+        bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
+        txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
+        gencode_file = "GENCODE_vM35_mm10.rds"
+    )
+    )
+    config <- genome_config[[ref_genome]]
+
+    library(config$bsgenome, character.only = TRUE, quietly = TRUE)
+    bs <- getExportedValue(config$bsgenome, config$bsgenome)
+
+    if (ref_source == "knownGene") {
+    library(config$txdb, character.only = TRUE, quietly = TRUE)
+    txdb <- getExportedValue(config$txdb, config$txdb)
+    genes_gr <- suppressMessages(genes(txdb))
+    } else {
+    genes_gr <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
+    genes_gr <- genes_gr[genes_gr$type == "gene"]
+    mcols(genes_gr) <- NULL
     }
 
     seqlevelsStyle(bs) <- style
@@ -181,7 +196,6 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", style = "UCSC", 
     chr_list <- chr_list[!tolower(chr_list) %in% c("mt", "chrm", "m", "mito")]
     chr_sizes <- seqlengths(bs)[chr_list]
 
-    genes_gr <- suppressMessages(genes(txdb))
     seqlevelsStyle(genes_gr) <- style
     genes_gr <- genes_gr[seqnames(genes_gr) %in% chr_list]
     seqlevels(genes_gr) <- chr_list
