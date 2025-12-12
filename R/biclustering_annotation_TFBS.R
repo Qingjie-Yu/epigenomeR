@@ -4,19 +4,38 @@
 # analysis workflow for biclustered genomic regions, including matched control generation,
 # enrichment testing, and heatmap visualization.
 #
-# Parameter: row_cluster_file_path: Path to tab-delimited file with clustered regions. Required columns: 'feature' (format: chr_start_end), 'label' (cluster assignment)
-#            out_dir: Output directory for all results (default: "./")
-#            ref_genome: Reference genome version (default: "hg38"). Options: "hg38", "hg19", "mm10", "mm39"
-#   control_rep: Multiplier for control region generation (default: 1). E.g., control_rep=2 generates 2x as many control regions as input regions
-#            regions: Region size in base pairs for analysis (default: 800). All regions resized to this width centered on original midpoint
-#            plot: Whether to generate heatmaps (default: TRUE). If FALSE, only performs enrichment analysis
-# Output: Control regions BED file: all_controls.bed
-#         TFBS enrichment TSV files (one per cluster): TFBS_enrichment_cluster_<label>.tsv
-#         Heatmap PDF (all filtered TFBS): TFBS_heatmap_all.pdf (if plot=TRUE)
-#         log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
-#         FDR matrix: FDR.csv (if plot=TRUE)
+# Parameters:
+#   row_cluster_file_path:
+#     Path to a tab-delimited file with clustered regions.
+#     Required columns: 'feature' (format: chr_start_end), 'label' (cluster assignment).
+#   out_dir:
+#     Output directory for all results (default: "./").
+#   ref_genome:
+#     Reference genome version (default: "hg38").
+#     Options: "hg38", "mm10".
+#   ref_source:
+#     Gene annotation source used to define gene models and TSS coordinates.
+#     Supported options are:
+#       - "knownGene": Uses the UCSC knownGene annotation obtained via
+#         the Bioconductor package TxDb.Hsapiens.UCSC.hg38.knownGene.
+#       - "GENCODE": Uses GENCODE gene annotations (GENCODE v49).
+#   control_rep:
+#     Multiplier for control region generation (default: 1).
+#     E.g., control_rep = 2 generates 2x as many control regions as input regions.
+#   regions:
+#     Region size in base pairs for analysis (default: 800).
+#     All regions resized to this width centered on original midpoint.
+#   plot:
+#     Whether to generate heatmaps (default: TRUE). If FALSE, only performs enrichment analysis.
+#
+# Output: 
+#   Control regions BED file: all_controls.bed
+#   TFBS enrichment TSV files (one per cluster): TFBS_enrichment_cluster_<label>.tsv
+#   Heatmap PDF (all filtered TFBS): TFBS_heatmap_all.pdf (if plot=TRUE)
+#   log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
+#   FDR matrix: FDR.csv (if plot=TRUE)
 
-biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
+biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
     # Load packages
     suppressPackageStartupMessages({
         library(data.table)
