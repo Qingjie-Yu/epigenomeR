@@ -16,7 +16,7 @@
 #         log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
 #         FDR matrix: FDR.csv (if plot=TRUE)
 
-biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", control_rep = 1, regions = 800, plot = TRUE) {
+biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
     # Load packages
     suppressPackageStartupMessages({
         library(data.table)
@@ -73,7 +73,7 @@ biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", 
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  TFBS Enrichment Heatmap Visualization")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        TFBS_enrichment_heatmap(tsv_path = tsv_paths, label = names(row_grl), out_dir = out_dir)
+        TFBS_enrichment_heatmap(tsv_path = tsv_paths, label = names(row_grl), out_dir = out_dir, n_plot = plot_n_top)
     }
 }
 

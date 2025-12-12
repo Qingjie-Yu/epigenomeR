@@ -2,7 +2,7 @@ Package: epigenomeR
 Type: Package
 Title: Comprehensive Toolkit for Epigenomic Data Analysis and Visualization
 Version: 0.1.0
-Author: Who wrote it
+Author: Yanting Hu, Qingjie Yu, Min-zhi Jiang, Kuai Yu
 Maintainer: Yanting Hu <yhu157@jh.edu>
 Description: A comprehensive R package for analyzing epigenomic data including ChIP-seq 
     and CUT&Tag experiments. Provides functions for count matrix processing, quality 

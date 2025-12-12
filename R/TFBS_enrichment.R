@@ -26,14 +26,14 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
     control_region <- resize(control_region, width = regions, fix='center')
   }
 
-  # Load motif library
-  motif_file <- switch(ref_genome,
-    hg38 = "motif_lib_hg38.rds",
-    mm10 = "motif_lib_mm10.rds",
+  # Load TFBS library
+  TFBS_library_file <- switch(ref_genome,
+    hg38 = "TFBS_lib_hg38.rds",
+    mm10 = "TFBS_lib_mm10.rds",
     stop("Invalid ref_genome")
   )
-  motif_library <- readRDS(system.file("extdata", motif_file, package = "epigenomeR"))
-  message(glue("Using reference genome {ref_genome} with {length(motif_library)} TFs"))
+  TFBS_library <- readRDS(system.file("extdata", TFBS_library_file, package = "epigenomeR"))
+  message(glue("Using reference genome {ref_genome} with {length(TFBS_library)} TFs"))
 
   if (is.null(style)) {
     style <- seqlevelsStyle(target_region)[1]
@@ -41,15 +41,15 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
     seqlevelsStyle(target_region) <- style
   }
   seqlevelsStyle(control_region) <- style
-  seqlevelsStyle(motif_library) <- style
+  seqlevelsStyle(TFBS_library) <- style
 
   # Filter by functional regions
   if(!is.null(functional_region)){
     seqlevelsStyle(functional_region) <- style
     message(glue("Filtering motif site using {length(functional_region)} functional regions"))
-    motif_library <- endoapply(motif_library, subsetByOverlaps, functional_region)
-    motif_library <- motif_library[lengths(motif_library) > 0]
-    if (sum(lengths(motif_library)) == 0) {
+    TFBS_library <- endoapply(TFBS_library, subsetByOverlaps, functional_region)
+    TFBS_library <- TFBS_library[lengths(TFBS_library) > 0]
+    if (sum(lengths(TFBS_library)) == 0) {
       warning("No motif sites overlap with the provided functional regions.")
       return(NULL)
     }
@@ -57,11 +57,11 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
 
   # Count overlaps
   message("Counting overlaps and performing enrichment analysis...")
-  target_overlap <- countOverlaps(motif_library, target_region)
-  control_overlap <- countOverlaps(motif_library, control_region)
+  target_overlap <- countOverlaps(TFBS_library, target_region)
+  control_overlap <- countOverlaps(TFBS_library, control_region)
   n_target <- length(target_region)
   n_control <- length(control_region)
-  tf_names <- names(motif_library)
+  tf_names <- names(TFBS_library)
 
   test_result <- data.table(
     TF = tf_names,

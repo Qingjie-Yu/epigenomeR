@@ -1,60 +1,137 @@
-# Add Non-Informative Regions Back to Clusters Based on Correlation
-# Post: Assign cluster labels to regions excluded from informative set by correlating them with 
-#       existing cluster signatures. Filters non-informative regions by non-zero count, computes 
-#       correlations with cluster-aggregated profiles, identifies best-matching clusters, and 
-#       generates a comprehensive feature-label table with priority-based assignments.
-# Parameter: nozero_file_path: Path to feather file containing all non-zero regions with 'pos' column.
-#            transformed_file_path: Path to feather file with transformed count data (e.g., normalized, log-transformed).
-#            informative_path: Path to feather file containing informative/significant regions used for clustering.
-#            cluster_path: Path to TSV/TXT file with 'feature' and 'label' columns defining cluster assignments.
-#            out_path: File path to save final feature-label table as feather format.
-#            save_plot: Logical indicating whether to save correlation distribution histogram, default to FALSE.
-#            plot_path: File path for saving histogram plot (PNG format). Required if save_plot = TRUE.
-#            cutoff_non_zero: Minimum number of non-zero samples required per region, default to 10.
-#            quantile_threshold: Quantile threshold (0-1) for filtering high-correlation regions, default to 0.75.
-# Output: A dataframe with 'feature' and 'label' columns where labels follow priority hierarchy:
-#         cluster_path assignments > correlation-based assignments > CRF_specific > Background.
-#         Also saves result to out_path as feather file and optionally saves correlation histogram.
-add_regions_back_to_cluster <- function(nozero_file_path, transformed_file_path, informative_path, cluster_path, out_path, save_plot = FALSE, plot_path = NULL, cutoff_non_zero = 10, quantile_threshold = 0.75) {
-  # load libraries
+#' Add Non-Informative Regions Back to Clusters Based on Correlation
+#'
+#' Assigns cluster labels to regions excluded from the informative set by
+#' correlating them with existing cluster signatures.
+#'
+#' @param orig_cm_path Path to feather file from build_count_matrix
+#' @param transformed_cm_path Path to feather file with transformed counts.
+#' @param filtered_cm_path Path to feather file with informative regions.
+#' @param cluster_path Path to TSV with 'feature' and 'label' columns.
+#' @param out_dir Output directory where results and plots will be written.
+#' @param cutoff_non_zero Min non-zero samples per region (default: 10).
+#' @param quantile_threshold Quantile for filtering correlations (default: 0.75).
+#' @param plot Save correlation histogram? (default: FALSE).
+#'
+#' @return Data frame with 'feature' and 'label' columns. Labels follow priority:
+#'         cluster_path > correlation-based > CRF_specific > Background.
+
+add_regions_back_to_cluster <- function(orig_cm_path,
+                                        transformed_cm_path,
+                                        filtered_cm_path,
+                                        cluster_path,
+                                        out_dir,
+                                        cutoff_non_zero = 10,
+                                        quantile_threshold = 0.75,
+                                        plot = FALSE) {
   suppressPackageStartupMessages({
     library(arrow)
     library(dplyr)
-    library(readr)
-  })   
+    library(tibble)
+  })
   
-  informative_regions <- read_feather(informative_path)
-  informative_regions <- informative_regions %>% tibble::column_to_rownames("pos")  
-  informative_regions <- as.matrix(informative_regions) 
-  transformed_regions <- read_feather(transformed_file_path)
-  transformed_regions <- transformed_regions %>% tibble::column_to_rownames("pos")  
-  transformed_regions <- as.matrix(transformed_regions)
-  row_cluster_table <- read.table(cluster_path, header = TRUE)
-  head(row_cluster_table)
-  row_cluster_vector <- setNames(row_cluster_table$label, row_cluster_table$feature)
-  row_cluster_vector
-  
-  df <- read_feather(nozero_file_path) 
-  if ("pos" %in% colnames(df)) {
-    df <- df %>% tibble::column_to_rownames("pos")
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  # Load data
+  load_matrix <- function(path) {
+    df <- read_feather(path)
+    if ("pos" %in% colnames(df)) df <- tibble::column_to_rownames(df, "pos")
+    as.matrix(df)
   }
-  mat_regions <- rownames(informative_regions)
-  df_regions <- rownames(df)
-  reduced_df <- df[setdiff(rownames(df), rownames(informative_regions)), ]
+
+  informative <- load_matrix(filtered_cm_path)
+  transformed <- load_matrix(transformed_cm_path)
+
+  clusters <- read.table(cluster_path, header = TRUE)
+  cluster_vec <- setNames(clusters$label, clusters$feature)
+
+  orig <- read_feather(orig_cm_path)
+  if ("pos" %in% colnames(orig)) orig <- tibble::column_to_rownames(orig, "pos")
   
-  # filter <10
-  filtered_df <- filter_greater_than_cutoff(reduced_df, cutoff_non_zero = cutoff_non_zero)
-  filtered_transformed_df <- transformed_regions[rownames(transformed_regions) %in% rownames(filtered_df), ] # row: 387931
+  row_sums_orig <- rowSums(orig, na.rm = TRUE)
+  nozero <- orig[row_sums_orig != 0, ]
+  if (nrow(nozero) == 0) {
+    stop("All regions in orig_cm_path have zero counts after removing all-zero rows.")
+  }
+
+  # Filter non-informative regions
+  noninformative <- nozero[setdiff(rownames(nozero), rownames(informative)), ]
+  nonzero_counts <- rowSums(noninformative > 0, na.rm = TRUE)
+  filtered <- noninformative[nonzero_counts > cutoff_non_zero, ]
+  filtered_transformed <- transformed[rownames(transformed) %in% rownames(filtered), ]
+
+  # Compute cluster signatures (mean per cluster)
+  common <- intersect(rownames(informative), names(cluster_vec))
+  if (length(common) == 0) stop("No matching regions between informative and cluster assignments")
+
+  cluster_means <- as.data.frame(informative[common, ]) |>
+    mutate(cluster = cluster_vec[common]) |>
+    group_by(cluster) |>
+    summarise(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop") |>
+    tibble::column_to_rownames("cluster")
+
+  # Correlate filtered regions with cluster signatures
+  common_samples <- intersect(colnames(filtered_transformed), colnames(cluster_means))
+  if (length(common_samples) == 0) stop("No common samples for correlation")
+
+  cor_mat <- cor(
+    t(filtered_transformed[, common_samples]),
+    t(cluster_means[, common_samples]),
+    use = "complete.obs"
+  )
+
+  max_cor <- apply(cor_mat, 1, max, na.rm = TRUE)
+  best_cluster <- colnames(cor_mat)[apply(cor_mat, 1, which.max)]
+
+  # Filter by quantile threshold
+  threshold <- quantile(max_cor, quantile_threshold, na.rm = TRUE)
+  cat(sprintf("Correlation threshold (%.0f%%): %.4f\n", quantile_threshold * 100, threshold))
+
+  if (plot) {
+    histogram_path <- file.path(out_dir, "correlation_histogram.png")
+    
+    png(histogram_path, width = 800, height = 600)
+    hist(max_cor, main = "Max Correlation Distribution", xlab = "Max Correlation",
+         col = "lightblue", border = "black", breaks = 50)
+    abline(v = threshold, col = "red", lty = 2, lwd = 2)
+    legend("topright", sprintf("%.0f%% = %.3f", quantile_threshold * 100, threshold),
+           col = "red", lty = 2)
+    dev.off()
+    cat("Saved histogram:", histogram_path, "\n")
+  }
+
+  high_cor_idx <- max_cor > threshold
+  high_cor_regions <- data.frame(
+    feature = names(max_cor)[high_cor_idx],
+    cor_mat[high_cor_idx, , drop = FALSE],
+    max_correlation = max_cor[high_cor_idx],
+    best_cluster = best_cluster[high_cor_idx],
+    row.names = names(max_cor)[high_cor_idx]
+  )
+
+  cat(sprintf("Regions: %d total -> %d high correlation (%.1f%%)\n",
+              length(max_cor), sum(high_cor_idx), 100 * mean(high_cor_idx)))
+
+  # Build result with priority-based labels
+  row_sums <- rowSums(transformed, na.rm = TRUE)
+  valid_features <- rownames(transformed)[row_sums != 0]
+
+  result <- data.frame(feature = valid_features, label = "Background", stringsAsFactors = FALSE)
+  result$label[result$feature %in% rownames(filtered)] <- "CRF_specific"
   
-  cluster_sample_matrix <- reduce_cluster_group(informative_regions, row_cluster_vector) 
+  match_cor <- match(result$feature, high_cor_regions$feature)
+  matched <- !is.na(match_cor)
+  result$label[matched] <- high_cor_regions$best_cluster[match_cor[matched]]
+
+  match_cluster <- match(result$feature, clusters$feature)
+  matched <- !is.na(match_cluster)
+  result$label[matched] <- as.character(clusters$label[match_cluster[matched]])
+
+  # Save output
+  feather_path <- file.path(out_dir, "feature_labels.feather")
+  csv_path <- file.path(out_dir, "feature_labels.csv")
   
-  correlation_result <- correlation_matrix(df = filtered_transformed_df, cluster_df = cluster_sample_matrix)
-  
-  correlation_result_max <- add_max_correlation(correlation_result)
-  
-  high_cor_regions <- filter_and_histogram_select_cutoff(correlation_result_max = correlation_result_max, quantile_threshold = quantile_threshold, save_plot = save_plot, plot_path = plot_path)
-  
-  output <- generate_result_df(full_df = transformed_regions, filtered_df = filtered_df, add_high_cor_regions = high_cor_regions, row_cluster_table = row_cluster_table, out_path = out_path)
-  
-  return(output)
+  write_feather(result, feather_path)
+  write.csv(result, csv_path, row.names = FALSE)
+
+  result
 }

@@ -59,7 +59,7 @@ biclustering_analysis_wrapper <- function(cm_path, out_dir, apply_filter = TRUE,
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  Annotation")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        biclustering_annotation_ccre_hmm(row_cluster_file_path = cluster_list$row_table, output_dir_path = out_dir, ref_genome = ref_genome)
+        biclustering_annotation_ccre_hmm_repeat(row_cluster_file_path = cluster_list$row_table, output_dir_path = out_dir, ref_genome = ref_genome)
         biclustering_TFBS_annotation(row_cluster_file_path = cluster_list$row_table, output_dir_path = out_dir, ref_genome = ref_genome)
     }
 }

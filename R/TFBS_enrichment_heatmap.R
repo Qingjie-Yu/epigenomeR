@@ -65,7 +65,7 @@ draw_heatmap <- function(data, save_path, col_fun, name, apply_cluster = FALSE) 
 #         log2 odds ratio matrix: odds_ratio_log2.csv
 #         FDR matrix: FDR.csv
 
-TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, selected_tfs = NULL, apply_cluster = FALSE) {
+TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = 20, selected_tfs = NULL, apply_cluster = FALSE) {
   # load library
   suppressPackageStartupMessages({
     library(ComplexHeatmap)
@@ -183,8 +183,8 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   }
 
   # save .csv
-  write.csv(odds_ratio_log2, file.path(out_dir, "odds_ratio_log2.csv"))
-  write.csv(FDR_mat, file.path(out_dir, "FDR.csv"))
-  cat(glue("Saved odds ratio matrix: {file.path(out_dir, 'odds_ratio_log2.csv')}"), "\n")
-  cat(glue("Saved FDR matrix: {file.path(out_dir, 'FDR.csv')}"), "\n")
+  write.csv(odds_ratio_log2, file.path(out_dir, "TFBS_odds_ratio_log2.csv"))
+  write.csv(FDR_mat, file.path(out_dir, "TFBS_FDR.csv"))
+  cat(glue("Saved odds ratio matrix: {file.path(out_dir, 'TFBS_odds_ratio_log2.csv')}"), "\n")
+  cat(glue("Saved FDR matrix: {file.path(out_dir, 'TFBS_FDR.csv')}"), "\n")
 }
