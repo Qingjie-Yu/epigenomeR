@@ -163,7 +163,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
     if (!ref_genome %in% names(genome_config)) {
         stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
     }
-    
+
     genome_config <- list(
     hg38 = list(
         bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
@@ -179,16 +179,16 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
     config <- genome_config[[ref_genome]]
 
     library(config$bsgenome, character.only = TRUE, quietly = TRUE)
-    bs <- getExportedValue(config$bsgenome, config$bsgenome)
+    bs <- get(config$bsgenome, envir = asNamespace(config$bsgenome))
 
     if (ref_source == "knownGene") {
-    library(config$txdb, character.only = TRUE, quietly = TRUE)
-    txdb <- getExportedValue(config$txdb, config$txdb)
-    genes_gr <- suppressMessages(genes(txdb))
+        library(config$txdb, character.only = TRUE, quietly = TRUE)
+        txdb <- get(config$txdb, envir = asNamespace(config$txdb))
+        genes_gr <- suppressMessages(genes(txdb))
     } else {
-    genes_gr <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
-    genes_gr <- genes_gr[genes_gr$type == "gene"]
-    mcols(genes_gr) <- NULL
+        genes_gr <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
+        genes_gr <- genes_gr[genes_gr$type == "gene"]
+        mcols(genes_gr) <- NULL
     }
 
     seqlevelsStyle(bs) <- style

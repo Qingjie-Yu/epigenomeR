@@ -1,101 +1,6 @@
-.load_annotation_data <- function() {
-  txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene::TxDb.Hsapiens.UCSC.hg38.knownGene
 
-  annotationFile <- system.file("extdata", "ENCFF414OGC_ENCFF806YEZ_ENCFF849TDM_ENCFF736UDR.7group.bed", package = "epigenomeR")
-  annotation_celltype_agnostic_file <- system.file("extdata", "GRCh38-cCREs.bed", package = "epigenomeR")
-  annotationFileChromHMM <- system.file("extdata", "hg38_genome_100_segments.bed", package = "epigenomeR")
-  annotationFileRepeatMasker <- system.file("extdata", "hg38.fa.out", package = "epigenomeR")
-
-  annotationDf <- read.table(annotationFile, header = FALSE, sep="\t", stringsAsFactors=FALSE, quote="")
-  annotation <- GenomicRanges::makeGRangesFromDataFrame(annotationDf,
-                                                        keep.extra.columns=TRUE,
-                                                        seqnames.field="V1",
-                                                        start.field="V2",
-                                                        end.field="V3",
-                                                        strand.field="V6")
-  categories <- unique(annotation$V10)
-
-  annotation_celltype_agnostic_df <- read.table(annotation_celltype_agnostic_file, header = FALSE, sep="\t", stringsAsFactors=FALSE, quote="")
-  annotation_celltype_agnostic <- GenomicRanges::makeGRangesFromDataFrame(annotation_celltype_agnostic_df,
-                                                                          keep.extra.columns=TRUE,
-                                                                          seqnames.field="V1",
-                                                                          start.field="V2",
-                                                                          end.field="V3")
-
-  annotationDfChromHMM <- read.table(annotationFileChromHMM, header = FALSE, sep="\t", stringsAsFactors=FALSE, quote="")
-  annotationChromHMM <- GenomicRanges::makeGRangesFromDataFrame(annotationDfChromHMM,
-                                                                keep.extra.columns=TRUE,
-                                                                seqnames.field="V1",
-                                                                start.field="V2",
-                                                                end.field="V3",
-                                                                strand.field="V6")
-  cleaned_strings <- gsub("\\d+_", "", annotationChromHMM$V4)
-
-  replace_strings <- function(strings, replacement_df) {
-    sapply(strings, function(x) {
-      if (x %in% replacement_df$original) {
-        replacement_df$replacement[match(x, replacement_df$original)]
-      } else {
-        x
-      }
-    })
-  }
-
-  path <- system.file("extdata", "state_annotations_processed.csv", package = "epigenomeR")
-  ChromHMM_state <- read.csv(path)
-
-  replacement_df <- ChromHMM_state[, c("mneumonics", "Group")]
-  colnames(replacement_df) <- c("original", "replacement")
-  updated_strings <- replace_strings(cleaned_strings, replacement_df)
-  updated_strings <- unname(updated_strings)
-  annotationChromHMM$group <- updated_strings
-
-  annotationChromHMM$full_anno <- annotationChromHMM$V4
-  annotationChromHMM$full_anno <- gsub("^\\d+", "", annotationChromHMM$full_anno)
-  annotationChromHMM$full_anno <- gsub("_", "", annotationChromHMM$full_anno)
-  annotationChromHMM$V4 <- gsub("^\\d+|\\d+$", "", annotationChromHMM$V4)
-  annotationChromHMM$V4 <- gsub("_", "", annotationChromHMM$V4)
-  categoriesChromHMM <- unique(annotationChromHMM$V4)
-
-  path_rm <- system.file("extdata", "repeatmasker.rds", package = "epigenomeR")
-  annotationRepeatMasker <- readRDS(path_rm)
-
-  newV10 <- sub(",.*", "", annotation$V10)
-  annotation$V10 <- newV10
-  annotation_celltype_agnostic$V6 <- sub(",.*", "", annotation_celltype_agnostic$V6)
-  categories <- unique(annotation$V10)
-  categoriesOrder <- c("dELS", "pELS", "PLS", "CTCF-only", "DNase-H3K4me3", "DNase-only", "Low-DNase")
-  CCREFeatures <- c(categoriesOrder, "other")
-  CCREChIPSeekerCategoriesOrder <- c(categoriesOrder, c("5' UTR", "3' UTR", "Exon", "Intron", "other"))
-  ChIPSeekerCCRECategoriesOrder <- c("dELS", "pELS", "PLS", "5' UTR", "Exon", "Intron", "3' UTR", "DNase-H3K4me3", "Low-DNase", "DNase-only", "CTCF-only", "other")
-  CCREChIPSeekerFeatures <- CCREChIPSeekerCategoriesOrder
-  repeatMaskerFeatures <- unique(annotationRepeatMasker$X11)
-  repeatMaskerCategoriesOrder <- c(repeatMaskerFeatures, "other")
-
-  allFeatures <- c("Distal Intergenic", "Promoter", "5' UTR", "1st Exon", "1st Intron", "Other Exon", "Other Intron", "3' UTR", "Downstream (<=300)")
-
-  list(
-    txdb = txdb,
-    annotation = annotation,
-    annotation_celltype_agnostic = annotation_celltype_agnostic,
-    annotationChromHMM = annotationChromHMM,
-    annotationRepeatMasker = annotationRepeatMasker,
-    categories = categories,
-    categoriesChromHMM = categoriesChromHMM,
-    repeatMaskerFeatures = repeatMaskerFeatures,
-    ChIPSeekerCCRECategoriesOrder = ChIPSeekerCCRECategoriesOrder,
-    allFeatures = allFeatures
-  )
-}
-
-.annotation_env <- new.env()
-
-.get_annotations <- function() {
-  if (is.null(.annotation_env$data)) {
-    .annotation_env$data <- .load_annotation_data()
-  }
-  return(.annotation_env$data)
-}
+# CCREUtils.R
+# ========== refine from CCREUtils.R ==========
 
 setClass("csCCREAnno",
          representation=representation(
@@ -115,27 +20,25 @@ getAnnotateStatPeakByOverlappingClosestFeatureHelper <- function(peak, annotatio
   for (category in categories) {
     allPeakCtsList[[category]] <- 0
   }
-  overlapRes <- GenomicRanges::findOverlaps(peak, annotation)
-  peakHitsUnique <- unique(S4Vectors::queryHits(overlapRes))
-  peakHits <- S4Vectors::queryHits(overlapRes)
+  overlapRes <- findOverlaps(peak, annotation)
+  peakHitsUnique <- unique(queryHits(overlapRes))
+  peakHits <- queryHits(overlapRes)
   peakHitsGR <- peak[peakHits]
-  annoHits <- S4Vectors::subjectHits(overlapRes)
+  annoHits <- subjectHits(overlapRes)
   annoHitsGR <- annotation[annoHits]
-  peakCenter <- ceiling((GenomicRanges::end(peakHitsGR)-GenomicRanges::start(peakHitsGR))/2 + GenomicRanges::start(peakHitsGR))
-  annoStarts <- GenomicRanges::start(annoHitsGR)
-  annoEnds <- GenomicRanges::end(annoHitsGR)
+  peakCenter <- ceiling((end(peakHitsGR)-start(peakHitsGR))/2 + start(peakHitsGR))
+  annoStarts <- start(annoHitsGR)
+  annoEnds <- end(annoHitsGR)
   startsDistance <- abs(peakCenter - annoStarts)
   endsDistance <- abs(peakCenter - annoEnds)
   minDistance <- pmin(startsDistance, endsDistance)
 
-  annoHitsDT <- data.table::as.data.table(annoHitsGR)
+  annoHitsDT <- as.data.table(annoHitsGR)
   annoHitsDT$peakHits <- peakHits
   annoHitsDT$minDistance <- minDistance
-
   annoHitsDTGroup <- annoHitsDT[annoHitsDT[ , .I[which.min(minDistance)], by = peakHits]$V1]
 
   peakCategories <- annoHitsDTGroup[[featureColname]]
-
   peakCategoriesTable <- table(peakCategories)
   return(peakCategoriesTable)
 }
@@ -145,7 +48,8 @@ annotatePeakByOverlappingClosestFeature <- function(peak, annotation, categories
   otherLength <- length(peak)-sum(peakCategoriesTable)
   peakFreq <- c(unname(peakCategoriesTable), otherLength) / length(peak) * 100
   res <- data.frame(Feature=c(names(peakCategoriesTable), "other"), Frequency = peakFreq)
-  x <- new("csCCREAnno", annoStat = res, peakNum=length(peak))
+  #x <- new("csCCREAnno", annoStat = res, peakNum=length(peak))
+  x <- new("csCCREAnno", annoStat = res, peakNum = length(peak), anno = peak)
   return(x)
 }
 
@@ -154,24 +58,24 @@ annotatePeakByOverlappingClosestFeatureHelper <- function(peak, annotation, cate
   for (category in categories) {
     allPeakCtsList[[category]] <- 0
   }
-  overlapRes <- GenomicRanges::findOverlaps(peak, annotation)
-  peakHitsUnique <- unique(S4Vectors::queryHits(overlapRes))
-  peakHits <- S4Vectors::queryHits(overlapRes)
+  overlapRes <- findOverlaps(peak, annotation)
+  peakHitsUnique <- unique(queryHits(overlapRes))
+  peakHits <- queryHits(overlapRes)
   peakHitsGR <- peak[peakHits]
-  annoHits <- S4Vectors::subjectHits(overlapRes)
+  annoHits <- subjectHits(overlapRes)
   annoHitsGR <- annotation[annoHits]
-  peakCenter <- ceiling((GenomicRanges::end(peakHitsGR)-GenomicRanges::start(peakHitsGR))/2 + GenomicRanges::start(peakHitsGR))
-  annoStarts <- GenomicRanges::start(annoHitsGR)
-  annoEnds <- GenomicRanges::end(annoHitsGR)
+  peakCenter <- ceiling((end(peakHitsGR)-start(peakHitsGR))/2 + start(peakHitsGR))
+  annoStarts <- start(annoHitsGR)
+  annoEnds <- end(annoHitsGR)
   startsDistance <- abs(peakCenter - annoStarts)
   endsDistance <- abs(peakCenter - annoEnds)
   minDistance <- pmin(startsDistance, endsDistance)
 
-  annoHitsDT <- data.table::as.data.table(annoHitsGR)
+  annoHitsDT <- as.data.table(annoHitsGR)
   annoHitsDT$peakHits <- peakHits
   annoHitsDT$minDistance <- minDistance
-  annoHitsDT$queryStart <- GenomicRanges::start(peakHitsGR)
-  annoHitsDT$queryEnd <- GenomicRanges::end(peakHitsGR)
+  annoHitsDT$queryStart <- start(peakHitsGR)
+  annoHitsDT$queryEnd <- end(peakHitsGR)
   annoHitsDT$queryIndex <- peakHitsGR$index
 
   annoHitsDTGroup <- annoHitsDT[annoHitsDT[ , .I[which.min(minDistance)], by = peakHits]$V1]
@@ -181,12 +85,9 @@ annotatePeakByOverlappingClosestFeatureHelper <- function(peak, annotation, cate
   return(annoHitsDTGroup)
 }
 
-annotatePeakByOverlappingChIPSeekerCCRE <- function(peak, annotation, categories, featureColname="V10") {
-  anno_data <- .get_annotations()
-  txdb <- anno_data$txdb
-  allFeatures <- anno_data$allFeatures
-
-  chipSeekerAnno <- ChIPseeker::annotatePeak(peak, TxDb=txdb, tssRegion=c(-1000, 1000), verbose=FALSE)
+# ChIPSeeker + CCRE annotation
+annotatePeakByOverlappingChIPSeekerCCRE <- function(peak, annotation, categories, featureColname="V10", txdb) {
+  chipSeekerAnno <- annotatePeak(peak, TxDb=txdb, tssRegion=c(-1000, 1000), verbose=FALSE)
   chipSeekerAnnoFreq <-  c()
   chipSeekerAnnoFreq[allFeatures] <- 0
   chipSeekerAnnoFreq[as.character(chipSeekerAnno@annoStat$Feature)] <- chipSeekerAnno@annoStat$Frequency
@@ -230,10 +131,97 @@ annotatePeakByOverlappingChIPSeekerCCRE <- function(peak, annotation, categories
   return(x)
 }
 
+# RepeatMasker annotation
 annotatepeakByOverlappingRepeatMasker <- function(peak, annotationRepeatMasker, repeatMaskerFeatures) {
   return(annotatePeakByOverlappingClosestFeature(peak, annotationRepeatMasker, repeatMaskerFeatures, featureColname = "X11"))
 }
 
+# ChromHMM annotation
 annotatepeakByOverlappingChromHMM <- function(peak, annotationChromHMM, categoriesChromHMM, featureColname = "V4") {
   return(annotatePeakByOverlappingClosestFeature(peak, annotationChromHMM, categoriesChromHMM, featureColname = featureColname))
+}
+
+
+plotAnnoBar.data.frame.one.target <- function(anno.df,
+                                              xlab="",
+                                              ylab="Percentage(%)",
+                                              title="Feature Distribution",
+                                              categoryColumn = ".id",
+                                              colorOption = 3,
+                                              features) {
+  anno.df$Feature <- factor(anno.df$Feature, levels = rev(levels(anno.df$Feature)))
+  missingIndices <- c()
+  print(anno.df)
+  for (i in seq_along(features)) {
+    feature <- features[i]
+    if (!feature %in% anno.df$Feature) {
+      missingIndices <- append(missingIndices, i)
+    }
+    else {
+      if (sum(anno.df$Frequency[anno.df$Feature == feature]) == 0) {
+        # missingIndices <- append(missingIndices, i)
+      }
+    }
+  }
+  anno.df <- anno.df[anno.df$Frequency != 0,]
+  print(missingIndices)
+  p <- ggplot(anno.df, aes_string(x = categoryColumn,
+                                  fill = "Feature",
+                                  y = "Frequency"))
+
+  p <- p + geom_bar(stat="identity") + coord_flip() + theme_bw() + theme(axis.text=element_text(size=16))
+  p <- p + ylab(ylab) + xlab(xlab) + ggtitle(title)
+
+  if (categoryColumn == 1) {
+    p <- p + scale_x_continuous(breaks=NULL)
+
+    p <- p+scale_fill_manual(values=rev(getCols(nrow(anno.df), option = colorOption, missingIndices)), guide=guide_legend(reverse=TRUE))
+  } else {
+    col <- getCols(length(unique(anno.df$Feature)), option = colorOption, missingIndices)
+    print(col)
+    col <- col[!is.na(col)]
+    print(col)
+    p <- p+scale_fill_manual(values=rev(col), guide=guide_legend(reverse=TRUE))
+  }
+  # p <- p + theme(plot.title = element_blank(), plot.margin=unit(c(1,1,-0.5,1),  "cm"), panel.border = element_blank(), panel.background = element_rect(fill='transparent'), axis.text=element_text(size=16),
+  #                  plot.background = element_rect(fill='transparent', color=NA),
+  #                  panel.grid.major = element_blank(),
+  #                  panel.grid.minor = element_blank(),
+  #                  legend.background = element_rect(fill='transparent'),
+  #                  legend.box.background = element_rect(fill='transparent'))+ labs(x=NULL, y=NULL)
+  return(p)
+}
+
+getCols <- function(n, option = 3, missingIdx = NULL) {
+  col <- c("#8dd3c7", "#ffffb3", "#bebada",
+           "#fb8072", "#80b1d3", "#fdb462",
+           "#b3de69", "#fccde5", "#d9d9d9",
+           "#bc80bd", "#ccebc5", "#ffed6f")
+
+  col2 <- c("#1f78b4", "#ffff33", "#c2a5cf",
+            "#ff7f00", "#810f7c", "#a6cee3",
+            "#006d2c", "#d73027", "#4d4d4d",
+            "#8c510a", "#78c679", "#7f0000",
+            "#41b6c4", "#e7298a", "#54278f")
+
+  col3 <- c("#a6cee3", "#1f78b4", "#b2df8a",
+            "#33a02c", "#fb9a99", "#e31a1c",
+            "#fdbf6f", "#ff7f00", "#cab2d6",
+            "#6a3d9a", "#ffff99", "#b15928")
+  col4 <- c(col3, col2, col)
+  col5 <- rainbow(120)
+  col6 <- c(col2, col, col3)
+
+  ## colorRampPalette(brewer.pal(12, "Set3"))(n)
+  cols <- list(col, col2, col3, col4, col5, col6)
+  col <- cols[[option]]
+  # print(col)
+  if (!is.null(missingIdx)) {
+    col <- col[-missingIdx]
+  }
+
+  print(col)
+  # print("n:")
+  # print(n)
+  return(col[1:n])
 }
