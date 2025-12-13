@@ -1,4 +1,4 @@
-# Biclustering TFBS Annotation Pipeline
+# Biclustering TFBS Enrichment Pipeline
 # 
 # This function performs a complete TFBS (Transcription Factor Binding Site) enrichment 
 # analysis workflow for biclustered genomic regions, including matched control generation,
@@ -35,7 +35,7 @@
 #   log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
 #   FDR matrix: FDR.csv (if plot=TRUE)
 
-biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
+biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
     # Load packages
     suppressPackageStartupMessages({
         library(data.table)
@@ -83,7 +83,7 @@ biclustering_annotation_TFBS <- function(row_cluster_file_path, out_dir = "./", 
     tsv_paths <- lapply(names(row_grl), function(label) {
         cat("\n", "Processing TFBS enrichment for:", label, "\n")
         out_path <- file.path(out_dir, paste0("TFBS_enrichment_cluster_", label, ".tsv"))
-        TFBS_enrichment(target_region = row_grl[[label]], control_region = control_gr,out_path = out_path, ref_genome = ref_genome, style = style)
+        calculate_TFBS_enrichment(target_region = row_grl[[label]], control_region = control_gr,out_path = out_path, ref_genome = ref_genome, style = style)
         out_path
     })
     tsv_paths <- unlist(tsv_paths)

@@ -12,7 +12,7 @@
 #
 # Output: A data frame where each row corresponds to a motif with enrichment statistics (odds ratio, p-value, FDR) saved to output_path
 
-TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_path = "./TFBS_enrichment.tsv",  functional_region = NULL, ref_genome = "hg38", style = NULL) {
+calculate_TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_path = "./TFBS_enrichment.tsv",  functional_region = NULL, ref_genome = "hg38", style = NULL) {
   # Load packages
   suppressPackageStartupMessages({
     library(IRanges)

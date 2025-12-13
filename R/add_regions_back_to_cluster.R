@@ -6,19 +6,19 @@
 #' @param orig_cm_path Path to feather file from build_count_matrix
 #' @param transformed_cm_path Path to feather file with transformed counts.
 #' @param filtered_cm_path Path to feather file with informative regions.
-#' @param cluster_path Path to TSV with 'feature' and 'label' columns.
+#' @param row_cluster_path Path to TSV with 'feature' and 'label' columns.
 #' @param out_dir Output directory where results and plots will be written.
 #' @param cutoff_non_zero Min non-zero samples per region (default: 10).
 #' @param quantile_threshold Quantile for filtering correlations (default: 0.75).
 #' @param plot Save correlation histogram? (default: FALSE).
 #'
 #' @return Data frame with 'feature' and 'label' columns. Labels follow priority:
-#'         cluster_path > correlation-based > CRF_specific > Background.
+#'         row_cluster_path > correlation-based > CRF_specific > Background.
 
 add_regions_back_to_cluster <- function(orig_cm_path,
                                         transformed_cm_path,
                                         filtered_cm_path,
-                                        cluster_path,
+                                        row_cluster_path,
                                         out_dir,
                                         cutoff_non_zero = 10,
                                         quantile_threshold = 0.75,
@@ -41,7 +41,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   informative <- load_matrix(filtered_cm_path)
   transformed <- load_matrix(transformed_cm_path)
 
-  clusters <- read.table(cluster_path, header = TRUE)
+  clusters <- read.table(row_cluster_path, header = TRUE)
   cluster_vec <- setNames(clusters$label, clusters$feature)
 
   orig <- read_feather(orig_cm_path)
@@ -127,11 +127,16 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   result$label[matched] <- as.character(clusters$label[match_cluster[matched]])
 
   # Save output
-  feather_path <- file.path(out_dir, "feature_labels.feather")
-  csv_path <- file.path(out_dir, "feature_labels.csv")
+  feather_path <- file.path()
+  tsv_all_path <- file.path(out_dir, "row_table_all.tsv")
+  tsv_clean_path <- file.path(out_dir, "row_table_clean.tsv")
   
   write_feather(result, feather_path)
-  write.csv(result, csv_path, row.names = FALSE)
 
-  result
+  write.table(result, tsv_all_path, sep = "\t", row.names = FALSE, quote = FALSE)
+  cat("Saved full labels:", tsv_all_path, "\n")
+
+  result_clean <- result %>% filter(!label %in% c("Background", "CRF_specific"))
+  write.table(result_clean, tsv_clean_path, sep = "\t", row.names = FALSE, quote = FALSE)
+  cat("Saved clean labels:", tsv_clean_path, "\n")
 }

@@ -159,5 +159,5 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
   pdf(out_path, width=ht_size[1], height=ht_size[2])
   draw(ht, heatmap_legend_side="bottom", background = "transparent")
   dev.off()
-  message("✅ Heatmap saved to: ", out_path)
+  message("Heatmap saved to: ", out_path)
 }
