@@ -1,15 +1,15 @@
-#' Add Non-Informative Regions Back to Clusters Based on Correlation
+#' Add Non-highly-variable Regions Back to Clusters Based on Correlation
 #'
-#' Assigns cluster labels to regions excluded from the informative set by
+#' Assigns cluster labels to regions excluded from the highly-variable set by
 #' correlating them with existing cluster signatures.
 #'
 #' @param orig_cm_path Path to feather file from build_count_matrix
 #' @param transformed_cm_path Path to feather file with transformed counts.
-#' @param filtered_cm_path Path to feather file with informative regions.
+#' @param filtered_cm_path Path to feather file with highly-variable regions.
 #' @param row_cluster_path Path to TSV with 'feature' and 'label' columns.
 #' @param out_dir Output directory where results and plots will be written.
 #' @param cutoff_non_zero Min non-zero samples per region (default: 10).
-#' @param quantile_threshold Quantile for filtering correlations (default: 0.75).
+#' @param quantile_threshold Quantile threshold for correlation filtering (0-1). Only regions with correlation above this quantile are assigned to clusters. (default: 0.75).
 #' @param plot Save correlation histogram? (default: FALSE).
 #'
 #' @return Data frame with 'feature' and 'label' columns. Labels follow priority:
@@ -127,7 +127,6 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   result$label[matched] <- as.character(clusters$label[match_cluster[matched]])
 
   # Save output
-  feather_path <- file.path()
   tsv_all_path <- file.path(out_dir, "row_table_all.tsv")
   tsv_clean_path <- file.path(out_dir, "row_table_clean.tsv")
   
