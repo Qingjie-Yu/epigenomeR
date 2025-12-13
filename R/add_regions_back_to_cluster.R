@@ -129,8 +129,6 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   # Save output
   tsv_all_path <- file.path(out_dir, "row_table_all.tsv")
   tsv_clean_path <- file.path(out_dir, "row_table_clean.tsv")
-  
-  write_feather(result, feather_path)
 
   write.table(result, tsv_all_path, sep = "\t", row.names = FALSE, quote = FALSE)
   cat("Saved full labels:", tsv_all_path, "\n")
