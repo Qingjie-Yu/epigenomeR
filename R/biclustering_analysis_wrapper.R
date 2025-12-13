@@ -28,7 +28,7 @@ biclustering_analysis_wrapper <- function(cm_path, out_dir, apply_filter = TRUE,
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  Merge all count matrix files")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        merged_cm_path <- merge_count_matrices(cm_path = cm_path, out_dir = out_dir)
+        merged_cm_path <- merge_count_matrices(cm_file_path = cm_path, out_dir = out_dir)
     } else {
         merged_cm_path <- cm_path
     }

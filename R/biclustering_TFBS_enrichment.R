@@ -92,7 +92,7 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  TFBS Enrichment Heatmap Visualization")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        TFBS_enrichment_heatmap(tsv_path = tsv_paths, label = names(row_grl), out_dir = out_dir, n_plot = plot_n_top)
+        TFBS_enrichment_heatmap(tsv_path = tsv_paths, label = names(row_grl), out_dir = out_dir, top_n = plot_n_top)
     }
 }
 
