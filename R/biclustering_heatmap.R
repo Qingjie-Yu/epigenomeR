@@ -44,22 +44,41 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
     c(w, h)
   }
   
-  calculate_cell_size <- function(row_labels, col_labels, row_fontsize, col_fontsize, default_cell_width = 5,  safety_factor = 1.5) {
+  calculate_cell_size <- function(row_labels, col_labels, row_fontsize, col_fontsize, default_cell_width = 5,  safety_factor = 1.5, lower_quantile = 0.8, upper_quantile = 0.5) {
     default_cell_height <- default_cell_width * length(col_labels) / length(row_labels)
+
     row_counts <- table(row_labels)
-    max_row_repeat_count <- max(row_counts)
+    unique_row_labels <- names(row_counts)
+    row_text_height <- row_fontsize * safety_factor
+    lower_count_row <- quantile(row_counts, lower_quantile, type = 1)
+    min_cell_height_lower <- row_text_height / lower_count_row
+    upper_count_row <- quantile(row_counts, upper_quantile, type = 1)
+    max_cell_height_upper <- row_text_height * 4 / upper_count_row
+    
     col_counts <- table(col_labels)
-    max_col_repeat_count <- max(col_counts)
+    unique_col_labels <- names(col_counts)
+    col_text_widths <- sapply(unique_col_labels, function(label) {
+      nchar(as.character(label)) * col_fontsize * 0.6 * safety_factor
+    })
+    lower_count_col <- quantile(col_counts, lower_quantile, type = 1)
+    min_cell_width_lower <- max(col_text_widths / lower_count_col)
+    upper_count_col <- quantile(col_counts, upper_quantile, type = 1)
+    max_cell_width_upper <- min(col_text_widths * 4 / upper_count_col)
 
-    max_col_label_chars <- max(nchar(as.character(col_labels)), na.rm = TRUE)
-    col_text_width <- max_col_label_chars * col_fontsize * 0.6 * safety_factor
-    min_cell_width_from_col <- col_text_width / max_col_repeat_count
+    if (min_cell_height_lower > max_cell_height_upper) {
+      final_cell_height <- min_cell_height_lower
+    } else {
+      final_cell_height <- max(default_cell_height, min_cell_height_lower)
+      final_cell_height <- min(final_cell_height, max_cell_height_upper)
+    }
 
-    row_text_height <- row_fontsize * safety_factor 
-    min_cell_height_from_row <- row_text_height / max_row_repeat_count
+    if (min_cell_width_lower > max_cell_width_upper) {
+      final_cell_width <- min_cell_width_lower
+    } else {
+      final_cell_width <- max(default_cell_width, min_cell_width_lower)
+      final_cell_width <- min(final_cell_width, max_cell_width_upper)
+    }
 
-    final_cell_width <- max(default_cell_width, min_cell_width_from_col)
-    final_cell_height <- max(default_cell_height, min_cell_height_from_row)
     list(
         cell_width_mm = final_cell_width,
         cell_height_mm = final_cell_height
