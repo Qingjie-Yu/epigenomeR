@@ -8,11 +8,11 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
     "ChromHMM_mm10.rds" = "d7bcf63a4e95e9f3c68c36358f583ae4b2492b6ebda8a9ff8834f60aebf69a0b",
     "GENCODE_v49_hg38_processed.rds" = "3b946ab7869b0bd48f902ab6c95582c1a7b4d60b19e0d304d557a6d7fcef5cf4",
     "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "fddab927b927c2874085645df12aa2a30d6ed9c9e78bb7dc714144a695641b3a",
-    "GENCODE_vM23_mm10.zip" = "8163c36daf7be227620c93692500058331ef21ebb86a57acb09d246745c8252d",
-    "GENCODE_vM23_mm10_processed.zip" = "1ae21ca2f4289389a63ce4331686b6ca3d93e4340188650db80352bf96466585",
-    "GENCODE_vM23_mm10_single_tx_by_evidence.zip" = "f3e8429e790420a877dd9df72f70dd0985ad4ed41a429076414fcb64ff9928d7","knownGene_hg38_processed.zip" = "6946011ac979e0fe09d2a27427099419b6b0897b15e5d3d69be77acc98aec895",
-    "knownGene_mm10_processed.zip" = "bfcb4bc634eced7451a5226cfbdf9fb6f0dc4041d03638037a978b7eebfc8299",
-    "TFBS_lib_hg38.zip" = "59b2a61d9a78caef07e5b7a82fac03aa24266e1b5a5281ec16f15ba4711bbddc"
+    "GENCODE_vM23_mm10.rds" = "8163c36daf7be227620c93692500058331ef21ebb86a57acb09d246745c8252d",
+    "GENCODE_vM23_mm10_processed.rds" = "1ae21ca2f4289389a63ce4331686b6ca3d93e4340188650db80352bf96466585",
+    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "f3e8429e790420a877dd9df72f70dd0985ad4ed41a429076414fcb64ff9928d7","knownGene_hg38_processed.rds" = "6946011ac979e0fe09d2a27427099419b6b0897b15e5d3d69be77acc98aec895",
+    "knownGene_mm10_processed.rds" = "bfcb4bc634eced7451a5226cfbdf9fb6f0dc4041d03638037a978b7eebfc8299",
+    "TFBS_lib_hg38.rds" = "59b2a61d9a78caef07e5b7a82fac03aa24266e1b5a5281ec16f15ba4711bbddc"
   )
 
   cache_dir <- rappdirs::user_cache_dir("epigenomeR")
