@@ -163,7 +163,7 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
 #       - repeat_annotation.tsv: Tab-delimited table of repeat class percentages
 #         (rows = samples, columns = repeat categories).
 #       - repeat_annotation.pdf: Stacked barplot visualization of repeat distributions.
-annotation_repeat <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
+repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
   suppressPackageStartupMessages({
     library(ggplot2)
     library(tidyr)
@@ -187,6 +187,10 @@ annotation_repeat <- function(query_grl, out_dir = "./", ref_genome = "hg38", mo
   }
   repeat_library <- readRDS(system.file("extdata", repeat_library_file, package = "epigenomeR"))
   message(glue("Using reference genome {ref_genome} with {length(repeat_library)} repeats"))
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(repeat_library)[1] != style) {
+    seqlevelsStyle(repeat_library) <- style
+  }
 
   # Annotate query regions with repeat elements
   repeat_df <- annotate_by_overlap(queries = query_grl, library = repeat_library, feature_col = "repClass", mode = mode, feature_order = repeat_order)
@@ -249,7 +253,7 @@ annotation_repeat <- function(query_grl, out_dir = "./", ref_genome = "hg38", mo
 #   - chromhmm_annotation.tsv: Tab-delimited table of chromatin state percentages
 #     (rows = samples, columns = chromatin state categories).
 #   - chromhmm_annotation.pdf: Stacked barplot visualization of chromatin state distributions.
-annotation_chromhmm <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
+chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
   suppressPackageStartupMessages({
     library(ggplot2)
     library(tidyr)
@@ -276,6 +280,10 @@ annotation_chromhmm <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
   }
   hmm_library <- readRDS(system.file("extdata", hmm_library_file, package = "epigenomeR"))
   message(glue("Using reference genome {ref_genome} with {length(hmm_library)} ChromHMMs"))
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(hmm_library)[1] != style) {
+    seqlevelsStyle(hmm_library) <- style
+  }
 
   # Annotate query regions with ChromHMM elements
   hmm_df <- annotate_by_overlap(queries = query_grl, library = hmm_library, feature_col = "clean_class", mode = mode, feature_order = hmm_order)
@@ -343,22 +351,28 @@ annotation_chromhmm <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
 #       - repeat_annotation.tsv: Tab-delimited table of repeat class percentages
 #         (rows = samples, columns = repeat categories).
 #       - repeat_annotation.pdf: Stacked barplot visualization of repeat distributions.
-annotation_ccre <- function(query_grl, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
-  ccre_category <- c(
+ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+  suppressPackageStartupMessages({
+    library(ggplot2)
+    library(tidyr)
+    library(dplyr)
+  })
+
+  ccre_order <- c(
     "dELS", "pELS", "PLS",
-    "5' UTR", "cExon", "Intron", "3' UTR",
+    "5' UTR", "Exon", "Intron", "3' UTR",
     "CA-H3K4me3", "CA-CTCF", "CA-TF", "TF", "CA"
   )
 
   genome_config <- list(
     hg38 = list(
         ccre_library_file = "ENCODE_cCRE_v4_hg38.rds",
-        txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
+        knowngene_file = "knownGene_hg38.rds",
         gencode_file = "GENCODE_v49_hg38.rds"
     ),
     mm10 = list(
         ccre_library_file = "ENCODE_cCRE_v4_mm10.rds",
-        txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
+        knowngene_file = "knownGene_mm10.rds",
         gencode_file = "GENCODE_vM35_mm10.rds"
     )
   )
@@ -367,19 +381,71 @@ annotation_ccre <- function(query_grl, out_dir = "./", ref_genome = "hg38", ref_
   ccre_library <- readRDS(system.file("extdata", config$ccre_library_file, package = "epigenomeR"))
   
   if (ref_source == "knownGene") {
-    library(config$txdb, character.only = TRUE, quietly = TRUE)
-    txdb <- get(config$txdb, envir = asNamespace(config$txdb))
-    gene_library <- suppressMessages(genes(txdb))
-  } else {
+    gene_library <- readRDS(system.file("extdata", config$knowngene_file, package = "epigenomeR"))
+  } else if (ref_source == "GENCODE") {
     gene_library <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
-    gene_library <- gene_library[!gene_library$type %in% c("gene", "CDS")]
-    mcols(gene_library) <- mcols(gene_library)[, "type", drop = FALSE]
-    colnames(mcols(gene_library)) <- "ccre_class"
+  } else {
+    stop("ref_source must be 'knownGene' or 'GENCODE'")
+  }
+  gene_library <- gene_library[gene_library$ccre_class != "Promoter"]
+
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(ccre_library)[1] != style) {
+    seqlevelsStyle(ccre_library) <- style
+  }
+  if (seqlevelsStyle(gene_library)[1] != style) {
+    seqlevelsStyle(gene_library) <- style
   }
 
+  # Combine libraries with gene_library having priority
+  combine_gr <- function(gr1, gr2) {
+    overlaps <- findOverlaps(gr2, gr1, type = "any")
+    if (length(overlaps) == 0) {
+      return(sort(c(gr1, gr2)))
+    }
+    overlap_idx <- unique(queryHits(overlaps))
+    non_overlap_idx <- setdiff(seq_along(gr2), overlap_idx)
+    gr2_no_overlap <- gr2[non_overlap_idx]
+    gr2_overlap <- gr2[overlap_idx]
+    gr2_remain <- setdiff(gr2_overlap, gr1)
+    combined <- c(gr1, gr2_remain, gr2_no_overlap)
+    return(sort(combined))
+  }
+  combined_library <- combine_gr(gene_library, ccre_library)
 
+  # Annotate query regions with combined elements
+  ccre_df <- annotate_by_overlap(queries = query_grl, library = combined_library, feature_col = "ccre_class", mode = mode, feature_order = ccre_order)
+  write.table(ccre_df, file = file.path(out_dir, "ccre_annotation.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
 
-  # 要把ccre_library和gene_library合并
-  message(glue("Using reference genome {ref_genome} with {length(ccre_library)} cCREs, {length()} genes"))
+  # Convert to long format for plotting
+  ccre_df_with_rownames <- tibble::rownames_to_column(ccre_df, var = "cluster")
+  ccre_long <- ccre_df_with_rownames %>% pivot_longer(cols = -cluster, names_to = "Feature", values_to = "Frequency")
 
+  # Set factor levels for proper ordering
+  feature_levels <- colnames(ccre_df)
+  ccre_long$Feature <- factor(ccre_long$Feature, levels = feature_levels)
+  cluster_levels <- rownames(ccre_df)
+  ccre_long$cluster <- factor(ccre_long$cluster, levels = rev(cluster_levels))
+  
+  # Create stacked barplot
+  if (plot) {
+    ccre_plot <- ggplot(ccre_long, aes(x = cluster, y = Frequency, fill = Feature)) +
+      geom_bar(stat = "identity", position = "stack") +
+      coord_flip() + 
+      scale_fill_brewer(palette = "Set3") + 
+      labs(title = "cCRE States", x = NULL, y = "Percentage (%)") +
+      theme_minimal() +
+      theme(
+        legend.position = "right",
+        plot.title = element_text(size = 18),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 9),
+        legend.key.size = unit(0.5, 'cm'),
+        axis.title.x = element_text(size = 20)
+      ) +
+      guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
+    
+    ggsave(file.path(out_dir, "ccre_annotation.pdf"), plot = ccre_plot, width = 6, height = 5)
+  }
 }
