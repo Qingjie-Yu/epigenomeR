@@ -378,12 +378,12 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
   )
   config <- genome_config[[ref_genome]]
 
-  ccre_library <- readRDS(ccre_library_file)
+  ccre_library <- readRDS(config$ccre_library_file)
   
   if (ref_source == "knownGene") {
-    gene_library <- readRDS(knowngene_file)
+    gene_library <- readRDS(config$knowngene_file)
   } else if (ref_source == "GENCODE") {
-    gene_library <- readRDS(gencode_file)
+    gene_library <- readRDS(config$gencode_file)
   } else {
     stop("ref_source must be 'knownGene' or 'GENCODE'")
   }
