@@ -168,12 +168,12 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
     hg38 = list(
         bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
         txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
-        gencode_file = "GENCODE_v49_hg38.rds"
+        gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
     ),
     mm10 = list(
         bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
         txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
-        gencode_file = "GENCODE_vM35_mm10.rds"
+        gencode_file = download_rds("GENCODE_vM35_mm10_processed.rds")
     )
     )
     config <- genome_config[[ref_genome]]

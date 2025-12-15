@@ -179,9 +179,9 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
 
   # Load reference library
   if (ref_genome == "hg38") {
-    repeat_library_file <- "RepeatMasker_hg38.rds"
+    repeat_library_file <- download_rds("RepeatMasker_hg38.rds")
   } else if (ref_genome == "mm10") {
-    repeat_library_file <- "RepeatMasker_mm10.rds"
+    repeat_library_file <- download_rds("RepeatMasker_mm10.rds")
   } else {
     stop("ref_genome must be 'hg38' or 'mm10'")
   }
@@ -272,9 +272,9 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
 
   # Load reference library
   if (ref_genome == "hg38") {
-    hmm_library_file <- "ChromHMM_hg38.rds"
+    hmm_library_file <- download_rds("ChromHMM_hg38.rds")
   } else if (ref_genome == "mm10") {
-    hmm_library_file <- "ChromHMM_mm10.rds"
+    hmm_library_file <- download_rds("ChromHMM_mm10.rds")
   } else {
     stop("ref_genome must be 'hg38' or 'mm10'")
   }
@@ -366,14 +366,14 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
 
   genome_config <- list(
     hg38 = list(
-        ccre_library_file = "ENCODE_cCRE_v4_hg38.rds",
-        knowngene_file = "knownGene_hg38.rds",
-        gencode_file = "GENCODE_v49_hg38.rds"
+        ccre_library_file = download_rds("ENCODE_cCRE_v4_hg38.rds"),
+        knowngene_file = download_rds("knownGene_hg38.rds"),
+        gencode_file = download_rds("GENCODE_v49_hg38.rds")
     ),
     mm10 = list(
-        ccre_library_file = "ENCODE_cCRE_v4_mm10.rds",
-        knowngene_file = "knownGene_mm10.rds",
-        gencode_file = "GENCODE_vM35_mm10.rds"
+        ccre_library_file = download_rds("ENCODE_cCRE_v4_mm10.rds"),
+        knowngene_file = download_rds("knownGene_mm10.rds"),
+        gencode_file = download_rds("GENCODE_vM35_mm10.rds")
     )
   )
   config <- genome_config[[ref_genome]]
