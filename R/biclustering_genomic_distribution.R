@@ -62,7 +62,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
  # Perform selected annotations
   if ("ccre" %in% annotations) {
     message("\n========== Running cCRE annotation ==========")
-    annotation_ccre(
+    ccre_distribution(
       query_grl = row_grl,
       out_dir = out_dir,
       ref_genome = ref_genome,
@@ -75,7 +75,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
   
   if ("chromhmm" %in% annotations) {
     message("\n========== Running ChromHMM annotation ==========")
-    annotation_chromhmm(
+    chromhmm_distribution(
       query_grl = row_grl,
       out_dir = out_dir,
       ref_genome = ref_genome,
@@ -87,7 +87,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
   
   if ("repeat" %in% annotations) {
     message("\n========== Running Repeat annotation ==========")
-    annotation_repeat(
+    repeat_distribution(
       query_grl = row_grl,
       out_dir = out_dir,
       ref_genome = ref_genome,
