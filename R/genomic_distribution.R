@@ -368,12 +368,12 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
     hg38 = list(
         ccre_library_file = download_rds("ENCODE_cCRE_v4_hg38.rds"),
         knowngene_file = download_rds("knownGene_hg38.rds"),
-        gencode_file = download_rds("GENCODE_v49_hg38.rds")
+        gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
     ),
     mm10 = list(
         ccre_library_file = download_rds("ENCODE_cCRE_v4_mm10.rds"),
         knowngene_file = download_rds("knownGene_mm10.rds"),
-        gencode_file = download_rds("GENCODE_vM35_mm10.rds")
+        gencode_file = download_rds("GENCODE_vM35_mm10_processed.rds")
     )
   )
   config <- genome_config[[ref_genome]]
