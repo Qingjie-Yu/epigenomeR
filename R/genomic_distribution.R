@@ -1,3 +1,7 @@
+# REQUIREMENT:
+# All annotation libraries provided to this script must contain non-overlapping genomic intervals.
+
+
 # Assigns feature annotations to query regions based on overlaps with a library.
 # Returns a data.frame with feature counts and percentages.
 annotate_GRanges <- function(queries, library, feature_col, mode, feature_order = NULL) {
@@ -74,13 +78,20 @@ annotate_GRanges <- function(queries, library, feature_col, mode, feature_order 
 annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest", "weighted"), feature_order = NULL) {
   mode <- match.arg(mode)
 
-  if (!feature_col %in% colnames(GenomicRanges::mcols(library))) {
+  mcols_lib <- GenomicRanges::mcols(library)
+  if (!feature_col %in% colnames(mcols_lib)) {
     stop("Column '", feature_col, "' not found in library metadata")
+  }
+  feature <- as.character(mcols_lib[[feature_col]])
+  bad <- is.na(feature) | feature == ""
+  if (any(bad)) {
+    library <- library[!bad]
   }
 
   # Prepare feature order
   all_features <- unique(as.character(GenomicRanges::mcols(library)[[feature_col]]))
   if (!is.null(feature_order)) {
+    feature_order <- feature_order[!is.na(feature_order)]
     missing_features <- setdiff(feature_order, all_features)
     if (length(missing_features) > 0) {
       feature_order <- feature_order[feature_order %in% all_features]
@@ -168,6 +179,7 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
     library(ggplot2)
     library(tidyr)
     library(dplyr)
+    library(grid)
   })
 
   repeat_order <- c(
@@ -187,9 +199,9 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
   }
   repeat_library <- readRDS(repeat_library_file)
   message(glue("Using reference genome {ref_genome} with {length(repeat_library)} repeats"))
-  style <- seqlevelsStyle(query_grl)[1]
-  if (seqlevelsStyle(repeat_library)[1] != style) {
-    seqlevelsStyle(repeat_library) <- style
+  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
+  if (GenomeInfoDb::seqlevelsStyle(repeat_library)[1] != style) {
+    GenomeInfoDb::seqlevelsStyle(repeat_library) <- style
   }
 
   # Annotate query regions with repeat elements
@@ -258,6 +270,7 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
     library(ggplot2)
     library(tidyr)
     library(dplyr)
+    library(grid)
   })
 
   hmm_order <- c(
@@ -280,9 +293,9 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
   }
   hmm_library <- readRDS(hmm_library_file)
   message(glue("Using reference genome {ref_genome} with {length(hmm_library)} ChromHMMs"))
-  style <- seqlevelsStyle(query_grl)[1]
-  if (seqlevelsStyle(hmm_library)[1] != style) {
-    seqlevelsStyle(hmm_library) <- style
+  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
+  if (GenomeInfoDb::seqlevelsStyle(hmm_library)[1] != style) {
+    GenomeInfoDb::seqlevelsStyle(hmm_library) <- style
   }
 
   # Annotate query regions with ChromHMM elements
@@ -356,6 +369,7 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
     library(ggplot2)
     library(tidyr)
     library(dplyr)
+    library(grid)
   })
 
   ccre_order <- c(
@@ -389,29 +403,45 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
   }
   gene_library <- gene_library[gene_library$ccre_class != "Promoter"]
 
-  style <- seqlevelsStyle(query_grl)[1]
-  if (seqlevelsStyle(ccre_library)[1] != style) {
-    seqlevelsStyle(ccre_library) <- style
+  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
+  if (GenomeInfoDb::seqlevelsStyle(ccre_library)[1] != style) {
+    GenomeInfoDb::seqlevelsStyle(ccre_library) <- style
   }
-  if (seqlevelsStyle(gene_library)[1] != style) {
-    seqlevelsStyle(gene_library) <- style
+  if (GenomeInfoDb::seqlevelsStyle(gene_library)[1] != style) {
+    GenomeInfoDb::seqlevelsStyle(gene_library) <- style
   }
 
   # Combine libraries with gene_library having priority
-  combine_gr <- function(gr1, gr2) {
-    overlaps <- findOverlaps(gr2, gr1, type = "any")
-    if (length(overlaps) == 0) {
-      return(sort(c(gr1, gr2)))
+  cut_overlap <- function(gr1, gr2, ignore_strand = TRUE) {
+    gr2_trim <- GenomicRanges::setdiff(gr2, gr1, ignore.strand = ignore_strand)
+    if (length(gr2_trim) > 0L) {
+      hits <- GenomicRanges::findOverlaps(
+          gr2_trim, gr2,
+          type = "any", ignore.strand = ignore_strand
+      )
+      mcols(gr2_trim) <- mcols(gr2)[rep(1, length(gr2_trim)), ]
+      mcols(gr2_trim)[,] <- NA
+
+      qh <- S4Vectors::queryHits(hits)
+      sh <- S4Vectors::subjectHits(hits)
+      if (length(qh) > 0) {
+        if (anyDuplicated(qh)) {
+          warning("gr2 has overlapping regions. Taking first match for each trimmed fragment.")
+          unique_qh <- unique(qh)
+          for (q in unique_qh) {
+          idx <- which(qh == q)[1]
+          mcols(gr2_trim)[q, ] <- mcols(gr2)[sh[idx], ]
+          }
+        } else {
+          mcols(gr2_trim)[qh, ] <- mcols(gr2)[sh, ]
+        }
+      }
     }
-    overlap_idx <- unique(queryHits(overlaps))
-    non_overlap_idx <- setdiff(seq_along(gr2), overlap_idx)
-    gr2_no_overlap <- gr2[non_overlap_idx]
-    gr2_overlap <- gr2[overlap_idx]
-    gr2_remain <- setdiff(gr2_overlap, gr1)
-    combined <- c(gr1, gr2_remain, gr2_no_overlap)
-    return(sort(combined))
+    combined <- c(gr1, gr2_trim)
+    combined <- GenomeInfoDb::sortSeqlevels(combined)
+    sort(combined)
   }
-  combined_library <- combine_gr(gene_library, ccre_library)
+  combined_library <- cut_overlap(gene_library, ccre_library)
 
   # Annotate query regions with combined elements
   ccre_df <- annotate_by_overlap(queries = query_grl, library = combined_library, feature_col = "ccre_class", mode = mode, feature_order = ccre_order)
