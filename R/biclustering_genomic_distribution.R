@@ -3,7 +3,7 @@
 #' | Parameter | Type | Required | Description | Example |
 #' |-----------|------|----------|-------------|---------|
 #' | `row_cluster_file_path` | character | Yes | Path to TSV file containing cluster assignments. Must have columns: 'feature' (genomic coordinates in format chr_start_end) and 'label' (cluster ID). Typically uses row_table_clean.tsv from biclustering results | `row_cluster_file_path = "./row_table_clean.tsv"` |
-#' | `output_dir_path` | character | No (default: "./") | Directory to save all annotation outputs. Subdirectories will be created for each annotation type | `output_dir_path = "./annotations"` |
+#' | `out_dir` | character | No (default: "./") | Directory to save all annotation outputs. Subdirectories will be created for each annotation type | `out_dir = "./annotations"` |
 #' | `ref_genome` | character | No (default: "hg38") | Reference genome version. Must be either "hg38" (Human GRCh38) or "mm10" (Mouse GRCm38) | `ref_genome = "hg38"` |
 #' | `ref_source` | character | No (default: "knownGene") | Gene annotation source for cCRE annotation. Options: "knownGene" (UCSC knownGene) or "GENCODE" (GENCODE annotations). Only used if "ccre" is in annotations parameter | `ref_source = "knownGene"` |
 #' | `mode` | character | No (default: "nearest") | Annotation mode for all annotation types. Options: "nearest" (assigns each region to closest feature) or "weighted" (proportional assignment by overlap length) | `mode = "nearest"` |
@@ -11,7 +11,7 @@
 #' | `plot` | logical | No (default: TRUE) | Whether to generate stacked barplot visualizations for each annotation type | `plot = TRUE` |
 #'
 #' 
-biclustering_annotation_ccre_hmm <- function(row_cluster_file_path, output_dir_path = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", annotation = c("ccre")) {
+biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", annotations = c("ccre")) {
   # Validate parameters
   if (!ref_genome %in% c("hg38", "mm10")) {
     stop("ref_genome must be 'hg38' or 'mm10'")
@@ -55,61 +55,46 @@ biclustering_annotation_ccre_hmm <- function(row_cluster_file_path, output_dir_p
   message("Loaded ", length(row_gr), " regions across ", length(row_grl), " clusters")
   message("Clusters: ", paste(names(row_grl), collapse = ", "))
 
-  if (!dir.exists(output_dir_path)) {
-    dir.create(output_dir_path, recursive = TRUE)
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
   }
 
  # Perform selected annotations
   if ("ccre" %in% annotations) {
     message("\n========== Running cCRE annotation ==========")
-    ccre_dir <- file.path(output_dir_path, "ccre")
-    if (!dir.exists(ccre_dir)) {
-      dir.create(ccre_dir, recursive = TRUE)
-    }
-    
     annotation_ccre(
       query_grl = row_grl,
-      out_dir = ccre_dir,
+      out_dir = out_dir,
       ref_genome = ref_genome,
       ref_source = ref_source,
       mode = mode,
       plot = plot
     )
-    message("cCRE annotation complete. Results saved to: ", ccre_dir)
+    message("cCRE annotation complete. Results saved to: ", out_dir)
   }
   
   if ("chromhmm" %in% annotations) {
     message("\n========== Running ChromHMM annotation ==========")
-    chromhmm_dir <- file.path(output_dir_path, "chromhmm")
-    if (!dir.exists(chromhmm_dir)) {
-      dir.create(chromhmm_dir, recursive = TRUE)
-    }
-    
     annotation_chromhmm(
       query_grl = row_grl,
-      out_dir = chromhmm_dir,
+      out_dir = out_dir,
       ref_genome = ref_genome,
       mode = mode,
       plot = plot
     )
-    message("ChromHMM annotation complete. Results saved to: ", chromhmm_dir)
+    message("ChromHMM annotation complete. Results saved to: ", out_dir)
   }
   
   if ("repeat" %in% annotations) {
     message("\n========== Running Repeat annotation ==========")
-    repeat_dir <- file.path(output_dir_path, "repeat")
-    if (!dir.exists(repeat_dir)) {
-      dir.create(repeat_dir, recursive = TRUE)
-    }
-    
     annotation_repeat(
       query_grl = row_grl,
-      out_dir = repeat_dir,
+      out_dir = out_dir,
       ref_genome = ref_genome,
       mode = mode,
       plot = plot
     )
-    message("Repeat annotation complete. Results saved to: ", repeat_dir)
+    message("Repeat annotation complete. Results saved to: ", out_dir)
   }
   
 }
