@@ -60,7 +60,7 @@ biclustering_analysis_wrapper <- function(cm_path, out_dir, apply_filter = TRUE,
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  Annotation")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, output_dir_path = out_dir, ref_genome = ref_genome)
+        biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, out_dir = out_dir, ref_genome = ref_genome)
         biclustering_TFBS_enrichment(row_cluster_file_path = cluster_list$row_table, out_dir = out_dir, ref_genome = ref_genome)
     }
 }

@@ -185,7 +185,7 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
   } else {
     stop("ref_genome must be 'hg38' or 'mm10'")
   }
-  repeat_library <- readRDS(system.file("extdata", repeat_library_file, package = "epigenomeR"))
+  repeat_library <- readRDS(repeat_library_file)
   message(glue("Using reference genome {ref_genome} with {length(repeat_library)} repeats"))
   style <- seqlevelsStyle(query_grl)[1]
   if (seqlevelsStyle(repeat_library)[1] != style) {
@@ -278,7 +278,7 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
   } else {
     stop("ref_genome must be 'hg38' or 'mm10'")
   }
-  hmm_library <- readRDS(system.file("extdata", hmm_library_file, package = "epigenomeR"))
+  hmm_library <- readRDS(hmm_library_file)
   message(glue("Using reference genome {ref_genome} with {length(hmm_library)} ChromHMMs"))
   style <- seqlevelsStyle(query_grl)[1]
   if (seqlevelsStyle(hmm_library)[1] != style) {
@@ -378,12 +378,12 @@ ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", re
   )
   config <- genome_config[[ref_genome]]
 
-  ccre_library <- readRDS(system.file("extdata", config$ccre_library_file, package = "epigenomeR"))
+  ccre_library <- readRDS(ccre_library_file)
   
   if (ref_source == "knownGene") {
-    gene_library <- readRDS(system.file("extdata", config$knowngene_file, package = "epigenomeR"))
+    gene_library <- readRDS(knowngene_file)
   } else if (ref_source == "GENCODE") {
-    gene_library <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
+    gene_library <- readRDS(gencode_file)
   } else {
     stop("ref_source must be 'knownGene' or 'GENCODE'")
   }

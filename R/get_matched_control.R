@@ -186,7 +186,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
         txdb <- get(config$txdb, envir = asNamespace(config$txdb))
         genes_gr <- suppressMessages(genes(txdb))
     } else {
-        genes_gr <- readRDS(system.file("extdata", config$gencode_file, package = "epigenomeR"))
+        genes_gr <- readRDS(gencode_file)
         genes_gr <- genes_gr[genes_gr$type == "gene"]
         mcols(genes_gr) <- NULL
     }
