@@ -1,19 +1,18 @@
 # Download and prepare reference RDS file from GitHub Release
 download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
   sha256_list <- c(
-    "ChromHMM_hg38.rds" = "1dc13278981bab4eded9e35423404c9d8f77140f108b275a92bffaad6593b992",
-    "GENCODE_v49_hg38.rds" = "59160b125527d5b4e9621b23bee9d323b056b93148921d563669cbed6b858ff6",
-    "ENCODE_cCRE_v4_hg38.rds" = "d24441998400770947e0c8c760251c408cb870b329f4445f3201f500e962a9ad",
-    "ENCODE_cCRE_v4_mm10.rds" = "42f3e5af98768b505d976538c006a4cbf6e3099f9e3ca3490ef5c9b9b15922a1",
-    "ChromHMM_mm10.rds" = "7d7f4007093bfaae0512671e487048e33c22f7962f350fd5553e5d4dad7a69dd",
-    "GENCODE_v49_hg38_processed.rds" = "8d08eb97c599075de5aca1c2617146397eb90fee290a1ede7e3b34f41ad466f5",
-    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "a202ee1cdde557b922cd4a02fd0175514555103ab6169059277dd8cc1efce318",
-    "GENCODE_vM23_mm10.rds" = "5ae83defc0160ef9354c00d4e5ddeb5a100702ca9c56113f26b3d5445a899e9f",
-    "GENCODE_vM23_mm10_processed.rds" = "6f366f7a0d79d48cee07ce4bccf4bea5b933272ddbbd133f0b548387f8879a7c",
-    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "1b69a9e161b6d6dd99504c97cec945ac697e320b170db39947aa7d4c860ca7c0",
-    "knownGene_hg38_processed.rds" = "443c55840283bb34814c5e3b6b6ecd6bde9efd2e475fb27ad5d050af827dce19",
-    "knownGene_mm10_processed.rds" = "268a4fe8dcc197d75ea1b4e72252cf8b08437d5a86e47488776ed230aeaf26fe",
-    "TFBS_lib_hg38.rds" = "4ee4b749cd599b4d1090dbf938c6a5081965bcae956d8340a417472ab76c6981"
+    "ChromHMM_hg38.rds" = "6ce5972399d2b712ab1f76722ef98e8573dc6e2366afd4dc10a670b016973edf",
+    "GENCODE_v49_hg38.rds" = "279993a6862ae4487a4f5caba5560ca2bb298ad74c40a5ff5c23b5d23534f354",
+    "ENCODE_cCRE_v4_hg38.rds" = "21e99022ed54b2c8edb106606a107fb9ed7eab0a480a5512ca50e28e4e81916d",
+    "ENCODE_cCRE_v4_mm10.rds" = "2d43916cd954bd86806c9287ce2ce0f573231e214dee531e6efd5d2d72a89c08",
+    "ChromHMM_mm10.rds" = "d7bcf63a4e95e9f3c68c36358f583ae4b2492b6ebda8a9ff8834f60aebf69a0b",
+    "GENCODE_v49_hg38_processed.rds" = "3b946ab7869b0bd48f902ab6c95582c1a7b4d60b19e0d304d557a6d7fcef5cf4",
+    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "fddab927b927c2874085645df12aa2a30d6ed9c9e78bb7dc714144a695641b3a",
+    "GENCODE_vM23_mm10.zip" = "8163c36daf7be227620c93692500058331ef21ebb86a57acb09d246745c8252d",
+    "GENCODE_vM23_mm10_processed.zip" = "1ae21ca2f4289389a63ce4331686b6ca3d93e4340188650db80352bf96466585",
+    "GENCODE_vM23_mm10_single_tx_by_evidence.zip" = "f3e8429e790420a877dd9df72f70dd0985ad4ed41a429076414fcb64ff9928d7","knownGene_hg38_processed.zip" = "6946011ac979e0fe09d2a27427099419b6b0897b15e5d3d69be77acc98aec895",
+    "knownGene_mm10_processed.zip" = "bfcb4bc634eced7451a5226cfbdf9fb6f0dc4041d03638037a978b7eebfc8299",
+    "TFBS_lib_hg38.zip" = "59b2a61d9a78caef07e5b7a82fac03aa24266e1b5a5281ec16f15ba4711bbddc"
   )
 
   cache_dir <- rappdirs::user_cache_dir("epigenomeR")
@@ -34,7 +33,7 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
     utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
     sha256_local <- digest::digest(zip_path, algo = "sha256", serialize = FALSE)
     if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
-      stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+      stop("sha256 mismatch for ", zip_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
     }
     utils::unzip(zip_path, exdir = cache_dir)
   }
