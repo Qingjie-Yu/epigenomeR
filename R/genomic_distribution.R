@@ -174,7 +174,6 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
 
   rownames(result_matrix) <- names(queries)
   result_df <- as.data.frame(result_matrix)
-  print(rowSums(test_df))
   return(result_df)
 }
 
@@ -221,7 +220,7 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
     theme_minimal() +
     theme(
       legend.position = "right",
-      plot.title = element_text(size = 18),
+      plot.title = element_text(size = 18, hjust = 0.5),
       axis.text.x = element_text(size = 12),
       legend.text = element_text(size = 9),
       legend.key.size = unit(0.5, 'cm'),
@@ -305,6 +304,7 @@ chromhmm_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mo
     "ReprPCopenC",
     "BivProm", "ZNF",                               # developmental regulation & ZNF clusters
     "ReprPC", "HET",                                # Polycomb repression & constitutive heterochromatin
+    "GapArtf",                                       # gap artifacts
     "Quies"                                        # quiescent background
   )
 
@@ -316,7 +316,8 @@ chromhmm_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mo
       "#FFFF99",                                               # intermediate
       "#B15928", "#FCCDE5",                                   # developmental
       "#3B82F6", "#1E40AF",                                   # repressed
-      "#F7F7F7",                                               # quiescent
+      "#E2D6C8",                                              # gap artifacts
+      "#A0A0A0",                                               # quiescent
       "#808080"
     ),
     c(hmm_order, "other")
@@ -358,6 +359,14 @@ ccre_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode =
     "dELS", "pELS", "PLS",
     "CA-H3K4me3", "CA-CTCF", "CA-TF", "TF", "CA"
   )
+  ccre_colors <- setNames(
+    c(
+      "#8DD3C7","#80B1D3","#BEBADA",
+      "#FB8072","#FDB462","#B3DE69", "#BC80BD","#D9D9D9",
+      "#D9D9D9",
+    ),
+    c(ccre_order, "other")
+  )
 
   if (ref_genome == "hg38") {
     ccre_library_file = download_rds("ENCODE_cCRE_v4_hg38.rds")
@@ -379,7 +388,7 @@ ccre_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode =
 
   # Create stacked barplot
   if (plot) {
-    plot_stacked_barplot(df = ccre_df, out_dir = out_dir, prefix = "ccre", title = "cCRE States", palette = "Set3")
+    plot_stacked_barplot(df = ccre_df, out_dir = out_dir, prefix = "ccre", title = "cCRE States", palette = ccre_colors)
   }
 }
 
@@ -391,7 +400,13 @@ ccre_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode =
 #   genic structures and optionally generates a visualization.
 genic_distribution <- function(query, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
   gene_order <- c(
-    "Promoter", "Intron", "Exon", "5' UTR", "3' UTR",
+    "Promoter", "5' UTR", "Exon", "Intron", "3' UTR"
+  )
+  gene_colors <- setNames(
+    c(
+      "#FC8D62","#FFD92F","#8DA0CB","#A6D854","#E78AC3","#E0E0E0"
+    ),
+    c(gene_order, "other")
   )
 
   if (ref_genome == "hg38") {
@@ -425,7 +440,7 @@ genic_distribution <- function(query, out_dir = "./", ref_genome = "hg38", ref_s
 
   # Create stacked barplot
   if (plot) {
-    plot_stacked_barplot(df = gene_df, out_dir = out_dir, prefix = "genic", title = "Genic States", palette = "Set2")
+    plot_stacked_barplot(df = gene_df, out_dir = out_dir, prefix = "genic", title = "Genic States", palette = gene_colors)
   }
 }
 
