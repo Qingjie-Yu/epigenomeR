@@ -2,6 +2,38 @@
 # All annotation libraries provided to this script must contain non-overlapping genomic intervals.
 
 
+# Combine two libraries with priority
+cut_overlap <- function(gr1, gr2, ignore_strand = TRUE) {
+  gr2_trim <- GenomicRanges::setdiff(gr2, gr1, ignore.strand = ignore_strand)
+  if (length(gr2_trim) > 0L) {
+    hits <- GenomicRanges::findOverlaps(
+        gr2_trim, gr2,
+        type = "any", ignore.strand = ignore_strand
+    )
+    mcols(gr2_trim) <- mcols(gr2)[rep(1, length(gr2_trim)), ]
+    mcols(gr2_trim)[,] <- NA
+
+    qh <- S4Vectors::queryHits(hits)
+    sh <- S4Vectors::subjectHits(hits)
+    if (length(qh) > 0) {
+      if (anyDuplicated(qh)) {
+        warning("gr2 has overlapping regions. Taking first match for each trimmed fragment.")
+        unique_qh <- unique(qh)
+        for (q in unique_qh) {
+        idx <- which(qh == q)[1]
+        mcols(gr2_trim)[q, ] <- mcols(gr2)[sh[idx], ]
+        }
+      } else {
+        mcols(gr2_trim)[qh, ] <- mcols(gr2)[sh, ]
+      }
+    }
+  }
+  combined <- c(gr1, gr2_trim)
+  combined <- GenomeInfoDb::sortSeqlevels(combined)
+  sort(combined)
+}
+
+
 # Assigns feature annotations to query regions based on overlaps with a library.
 # Returns a data.frame with feature counts and percentages.
 annotate_GRanges <- function(queries, library, feature_col, mode, feature_order = NULL) {
@@ -91,11 +123,7 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
   # Prepare feature order
   all_features <- unique(as.character(GenomicRanges::mcols(library)[[feature_col]]))
   if (!is.null(feature_order)) {
-    feature_order <- feature_order[!is.na(feature_order)]
-    missing_features <- setdiff(feature_order, all_features)
-    if (length(missing_features) > 0) {
-      feature_order <- feature_order[feature_order %in% all_features]
-    }
+    feature_order <- feature_order[feature_order %in% all_features]
     if (!"other" %in% feature_order) {
       feature_order <- c(feature_order, "other")
     }
@@ -149,6 +177,49 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
   return(result_df)
 }
 
+# Create stacked barplot for genomic distribution annotation
+plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", ylabel = "Percentage (%)", plot_width = 6, plot_height = 5) {
+  suppressPackageStartupMessages({
+    library(ggplot2)
+    library(tidyr)
+    library(dplyr)
+    library(grid)
+  })
+  df_with_rownames <- tibble::rownames_to_column(df, var = "cluster")
+  df_long <- df_with_rownames %>% pivot_longer(cols = -cluster, names_to = "Feature", values_to = "Frequency")
+
+  feature_levels <- colnames(df)
+  df_long$Feature <- factor(df_long$Feature, levels = feature_levels)
+  cluster_levels <- rownames(df)
+  df_long$cluster <- factor(df_long$cluster, levels = rev(cluster_levels))
+
+  if (length(palette) == 1) {
+    color_scale <- scale_fill_brewer(palette = palette)
+  } else {
+    color_scale <- scale_fill_manual(values = palette)
+  }
+
+  p <- ggplot(df_long, aes(x = cluster, y = Frequency, fill = Feature)) + 
+    geom_bar(stat = "identity", position = "stack") +
+    coord_flip() + 
+    color_scale +
+    labs(title = title, x = NULL, y = ylabel) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      plot.title = element_text(size = 18),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      legend.text = element_text(size = 9),
+      legend.key.size = unit(0.5, 'cm'),
+      axis.title.x = element_text(size = 20)
+    ) +
+    guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
+  
+  output_file <- file.path(out_dir, paste0(prefix, "_distribution.pdf"))
+  ggsave(output_file, plot = p, width = plot_width, height = plot_height)
+  message("Plot saved to: ", output_file)
+}
 
 
 # Repeat Element Annotation Function
@@ -175,18 +246,17 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
 #         (rows = samples, columns = repeat categories).
 #       - repeat_annotation.pdf: Stacked barplot visualization of repeat distributions.
 repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
-  suppressPackageStartupMessages({
-    library(ggplot2)
-    library(tidyr)
-    library(dplyr)
-    library(grid)
-  })
-
   repeat_order <- c(
     "SINE", "LINE", "LTR", "Retroposon", "RC", "DNA",
     "Satellite", "Simple_repeat", "Low_complexity",
     "rRNA", "tRNA", "snRNA", "scRNA", "srpRNA", "RNA",
     "Unknown"
+  )
+  repeat_colors <- c(
+    "#3B82F6", "#60A5FA", "#34D399", "#6EE7B7", "#A78BFA", "#8B5CF6",  # transposable (6)
+    "#F59E0B", "#FBBF24", "#FDE68A",                                   # tandem (3)
+    "#EC4899", "#F9A8D4", "#FCA5A5", "#FED7AA", "#E9D5FF", "#DDD6FE", # RNA (6)
+    "#D1D5DB"                                                          # unknown (1)
   )
 
   # Load reference library
@@ -199,45 +269,18 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
   }
   repeat_library <- readRDS(repeat_library_file)
   message(glue("Using reference genome {ref_genome} with {length(repeat_library)} repeats"))
-  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
-  if (GenomeInfoDb::seqlevelsStyle(repeat_library)[1] != style) {
-    GenomeInfoDb::seqlevelsStyle(repeat_library) <- style
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(repeat_library)[1] != style) {
+    seqlevelsStyle(repeat_library) <- style
   }
 
   # Annotate query regions with repeat elements
   repeat_df <- annotate_by_overlap(queries = query_grl, library = repeat_library, feature_col = "repClass", mode = mode, feature_order = repeat_order)
-  write.table(repeat_df, file = file.path(out_dir, "repeat_annotation.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
-
-  # Convert to long format for plotting
-  repeat_df_with_rownames <- tibble::rownames_to_column(repeat_df, var = "cluster")
-  repeat_long <- repeat_df_with_rownames %>% pivot_longer(cols = -cluster, names_to = "Feature", values_to = "Frequency")
-
-  # Set factor levels for proper ordering
-  feature_levels <- colnames(repeat_df)
-  repeat_long$Feature <- factor(repeat_long$Feature, levels = feature_levels)
-  cluster_levels <- rownames(repeat_df)
-  repeat_long$cluster <- factor(repeat_long$cluster, levels = rev(cluster_levels))
+  write.table(repeat_df, file = file.path(out_dir, "repeat_distribution.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
   
   # Create stacked barplot
   if (plot) {
-    repeat_plot <- ggplot(repeat_long, aes(x = cluster, y = Frequency, fill = Feature)) +
-      geom_bar(stat = "identity", position = "stack") +
-      coord_flip() + 
-      scale_fill_brewer(palette = "Dark2") + 
-      labs(title = "Repeat Elements", x = NULL, y = "Percentage (%)") +
-      theme_minimal() +
-      theme(
-        legend.position = "right",
-        plot.title = element_text(size = 18),
-        axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 9),
-        legend.key.size = unit(0.5, 'cm'),
-        axis.title.x = element_text(size = 20)
-      ) +
-      guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
-    
-    ggsave(file.path(out_dir, "repeat_annotation.pdf"), plot = repeat_plot, width = 6, height = 5)
+    plot_stacked_barplot(df = repeat_df, out_dir = out_dir, prefix = "repeat", title = "Repeat Elements", palette = repeat_colors)
   }
 }
 
@@ -266,13 +309,6 @@ repeat_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", 
 #     (rows = samples, columns = chromatin state categories).
 #   - chromhmm_annotation.pdf: Stacked barplot visualization of chromatin state distributions.
 chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
-  suppressPackageStartupMessages({
-    library(ggplot2)
-    library(tidyr)
-    library(dplyr)
-    library(grid)
-  })
-
   hmm_order <- c(
     "Acet", "EnhWk", "EnhA", "PromF", "TSS",        # active enhancers & promoters
     "TxWk", "TxEx", "Tx",                           # transcription continuum
@@ -281,6 +317,16 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
     "BivProm", "ZNF",                               # developmental regulation & ZNF clusters
     "ReprPC", "HET",                                # Polycomb repression & constitutive heterochromatin
     "Quies"                                         # quiescent background
+  )
+
+  hmm_colors <- c(
+    "#EF4444", "#FB9A99", "#FF7F00", "#FDBF6F", "#CAB2D6",  # active
+    "#B2DF8A", "#22C55E", "#10B981",                        # transcription
+    "#A6CEE3", "#6A3D9A",                                   # accessible
+    "#FFFF99",                                               # intermediate
+    "#B15928", "#FCCDE5",                                   # developmental
+    "#999999", "#636363",                                   # repressed
+    "#F7F7F7"                                               # quiescent
   )
 
   # Load reference library
@@ -293,45 +339,18 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
   }
   hmm_library <- readRDS(hmm_library_file)
   message(glue("Using reference genome {ref_genome} with {length(hmm_library)} ChromHMMs"))
-  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
-  if (GenomeInfoDb::seqlevelsStyle(hmm_library)[1] != style) {
-    GenomeInfoDb::seqlevelsStyle(hmm_library) <- style
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(hmm_library)[1] != style) {
+    seqlevelsStyle(hmm_library) <- style
   }
 
   # Annotate query regions with ChromHMM elements
   hmm_df <- annotate_by_overlap(queries = query_grl, library = hmm_library, feature_col = "clean_class", mode = mode, feature_order = hmm_order)
-  write.table(hmm_df, file = file.path(out_dir, "chromhmm_annotation.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
+  write.table(hmm_df, file = file.path(out_dir, "chromhmm_distribution.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
 
-  # Convert to long format for plotting
-  hmm_df_with_rownames <- tibble::rownames_to_column(hmm_df, var = "cluster")
-  hmm_long <- hmm_df_with_rownames %>% pivot_longer(cols = -cluster, names_to = "Feature", values_to = "Frequency")
-
-  # Set factor levels for proper ordering
-  feature_levels <- colnames(hmm_df)
-  hmm_long$Feature <- factor(hmm_long$Feature, levels = feature_levels)
-  cluster_levels <- rownames(hmm_df)
-  hmm_long$cluster <- factor(hmm_long$cluster, levels = rev(cluster_levels))
-  
   # Create stacked barplot
   if (plot) {
-    hmm_plot <- ggplot(hmm_long, aes(x = cluster, y = Frequency, fill = Feature)) +
-      geom_bar(stat = "identity", position = "stack") +
-      coord_flip() + 
-      scale_fill_brewer(palette = "Paired") + 
-      labs(title = "ChromHMM States", x = NULL, y = "Percentage (%)") +
-      theme_minimal() +
-      theme(
-        legend.position = "right",
-        plot.title = element_text(size = 18),
-        axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 9),
-        legend.key.size = unit(0.5, 'cm'),
-        axis.title.x = element_text(size = 20)
-      ) +
-      guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
-    
-    ggsave(file.path(out_dir, "chromhmm_annotation.pdf"), plot = hmm_plot, width = 6, height = 5)
+    plot_stacked_barplot(df = hmm_df, out_dir = out_dir, prefix = "chromhmm", title = "ChromHMM States", palette = hmm_colors)
   }
 }
 
@@ -346,11 +365,6 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
 #   query_grl: GRangesList containing query region sets (e.g., biclustering-derived clusters).
 #   out_dir: Directory to save output files (repeat tables and plots).
 #   ref_genome: Reference genome version. Must be either "hg38" or "mm10".
-#   ref_source: Gene annotation source used to define gene models and TSS
-#               coordinates. Supported options are:
-#               - "knownGene": Uses the UCSC knownGene annotation obtained via
-#                 the Bioconductor package TxDb.Hsapiens.UCSC.hg38.knownGene
-#               - "GENCODE": Uses GENCODE gene annotations (GENCODE v49).
 #   mode: Annotation mode for assigning repeat classes to query regions. Default: "nearest"
 #         - "nearest": Assigns each query region to the closest overlapping repeat element
 #                      based on distance from query center to repeat boundaries. Each region
@@ -364,118 +378,104 @@ chromhmm_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38"
 #       - repeat_annotation.tsv: Tab-delimited table of repeat class percentages
 #         (rows = samples, columns = repeat categories).
 #       - repeat_annotation.pdf: Stacked barplot visualization of repeat distributions.
-ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
-  suppressPackageStartupMessages({
-    library(ggplot2)
-    library(tidyr)
-    library(dplyr)
-    library(grid)
-  })
-
+ccre_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", mode = "nearest", plot = TRUE) {
   ccre_order <- c(
     "dELS", "pELS", "PLS",
-    "5' UTR", "Exon", "Intron", "3' UTR",
     "CA-H3K4me3", "CA-CTCF", "CA-TF", "TF", "CA"
   )
 
-  genome_config <- list(
-    hg38 = list(
-        ccre_library_file = download_rds("ENCODE_cCRE_v4_hg38.rds"),
-        knowngene_file = download_rds("knownGene_hg38_processed.rds"),
-        gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
-    ),
-    mm10 = list(
-        ccre_library_file = download_rds("ENCODE_cCRE_v4_mm10.rds"),
-        knowngene_file = download_rds("knownGene_mm10_processed.rds"),
-        gencode_file = download_rds("GENCODE_vM23_mm10_processed.rds")
-    )
-  )
-  config <- genome_config[[ref_genome]]
-
-  ccre_library <- readRDS(config$ccre_library_file)
-  
-  if (ref_source == "knownGene") {
-    gene_library <- readRDS(config$knowngene_file)
-  } else if (ref_source == "GENCODE") {
-    gene_library <- readRDS(config$gencode_file)
+  if (ref_genome == "hg38") {
+    ccre_library_file = download_rds("ENCODE_cCRE_v4_hg38.rds")
+  } else if (ref_genome == "mm10") {
+    ccre_library_file = download_rds("ENCODE_cCRE_v4_mm10.rds")
   } else {
-    stop("ref_source must be 'knownGene' or 'GENCODE'")
-  }
-  gene_library <- gene_library[gene_library$ccre_class != "Promoter"]
-
-  style <- GenomeInfoDb::seqlevelsStyle(query_grl)[1]
-  if (GenomeInfoDb::seqlevelsStyle(ccre_library)[1] != style) {
-    GenomeInfoDb::seqlevelsStyle(ccre_library) <- style
-  }
-  if (GenomeInfoDb::seqlevelsStyle(gene_library)[1] != style) {
-    GenomeInfoDb::seqlevelsStyle(gene_library) <- style
+    stop("ref_genome must be 'hg38' or 'mm10'")
   }
 
-  # Combine libraries with gene_library having priority
-  cut_overlap <- function(gr1, gr2, ignore_strand = TRUE) {
-    gr2_trim <- GenomicRanges::setdiff(gr2, gr1, ignore.strand = ignore_strand)
-    if (length(gr2_trim) > 0L) {
-      hits <- GenomicRanges::findOverlaps(
-          gr2_trim, gr2,
-          type = "any", ignore.strand = ignore_strand
-      )
-      mcols(gr2_trim) <- mcols(gr2)[rep(1, length(gr2_trim)), ]
-      mcols(gr2_trim)[,] <- NA
-
-      qh <- S4Vectors::queryHits(hits)
-      sh <- S4Vectors::subjectHits(hits)
-      if (length(qh) > 0) {
-        if (anyDuplicated(qh)) {
-          warning("gr2 has overlapping regions. Taking first match for each trimmed fragment.")
-          unique_qh <- unique(qh)
-          for (q in unique_qh) {
-          idx <- which(qh == q)[1]
-          mcols(gr2_trim)[q, ] <- mcols(gr2)[sh[idx], ]
-          }
-        } else {
-          mcols(gr2_trim)[qh, ] <- mcols(gr2)[sh, ]
-        }
-      }
-    }
-    combined <- c(gr1, gr2_trim)
-    combined <- GenomeInfoDb::sortSeqlevels(combined)
-    sort(combined)
+  ccre_library <- readRDS(ccre_library_file)
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(ccre_library)[1] != style) {
+    seqlevelsStyle(ccre_library) <- style
   }
-  combined_library <- cut_overlap(gene_library, ccre_library)
 
-  # Annotate query regions with combined elements
-  ccre_df <- annotate_by_overlap(queries = query_grl, library = combined_library, feature_col = "ccre_class", mode = mode, feature_order = ccre_order)
-  write.table(ccre_df, file = file.path(out_dir, "ccre_annotation.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
+  # Annotate query regions with cCRE elements
+  ccre_df <- annotate_by_overlap(queries = query_grl, library = ccre_library, feature_col = "ccre_class", mode = mode, feature_order = ccre_order)
+  write.table(ccre_df, file = file.path(out_dir, "ccre_distribution.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
 
-  # Convert to long format for plotting
-  ccre_df_with_rownames <- tibble::rownames_to_column(ccre_df, var = "cluster")
-  ccre_long <- ccre_df_with_rownames %>% pivot_longer(cols = -cluster, names_to = "Feature", values_to = "Frequency")
-
-  # Set factor levels for proper ordering
-  feature_levels <- colnames(ccre_df)
-  ccre_long$Feature <- factor(ccre_long$Feature, levels = feature_levels)
-  cluster_levels <- rownames(ccre_df)
-  ccre_long$cluster <- factor(ccre_long$cluster, levels = rev(cluster_levels))
-  
   # Create stacked barplot
   if (plot) {
-    ccre_plot <- ggplot(ccre_long, aes(x = cluster, y = Frequency, fill = Feature)) +
-      geom_bar(stat = "identity", position = "stack") +
-      coord_flip() + 
-      scale_fill_brewer(palette = "Set3") + 
-      labs(title = "cCRE States", x = NULL, y = "Percentage (%)") +
-      theme_minimal() +
-      theme(
-        legend.position = "right",
-        plot.title = element_text(size = 18),
-        axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 9),
-        legend.key.size = unit(0.5, 'cm'),
-        axis.title.x = element_text(size = 20)
-      ) +
-      guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
-    
-    ggsave(file.path(out_dir, "ccre_annotation.pdf"), plot = ccre_plot, width = 6, height = 5)
+    plot_stacked_barplot(df = ccre_df, out_dir = out_dir, prefix = "ccre", title = "cCRE States", palette = "Set3")
+  }
+}
+
+# Genic Structure Annotation Function
+# Description:
+#   Annotates genomic regions with gene structural components based on
+#   transcript annotations, including 5' UTR, exon, intron, and 3' UTR.
+#   This function summarizes the distribution of query regions across
+#   genic structures and optionally generates a visualization.
+#
+# Parameters:
+#   query_grl: GRangesList containing query region sets
+#              (e.g., biclustering-derived clusters).
+#   out_dir: Directory to save output files (tables and plots).
+#   ref_genome: Reference genome version. Must be either "hg38" or "mm10".
+#   ref_source: Gene annotation source used to define transcript models.
+#               Supported options are:
+#               - "knownGene": Uses the UCSC knownGene annotation obtained via
+#                 the Bioconductor TxDb packages.
+#               - "GENCODE": Uses GENCODE gene annotations (GENCODE v49 for hg38).
+#   mode: Annotation mode for assigning genic structures to query regions.
+#         Default: "nearest"
+#         - "nearest": Assigns each query region to a single genic structure
+#                      based on the closest overlapping transcript feature.
+#         - "weighted": Assigns genic structures proportionally based on
+#                       overlap length. A single query region can contribute
+#                       fractionally to multiple genic categories, weighted by
+#                       (overlap_length / query_length).
+#   plot: Boolean, whether to generate a stacked barplot.
+#
+# Output files (always saved):
+#   - genic_annotation.tsv: Tab-delimited table of genic structure percentages
+#     (rows = samples, columns = genic categories).
+#   - genic_annotation.pdf: Stacked barplot visualization of genic structure
+#     distributions.
+genic_distribution <- function(query_grl, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+  gene_order <- c(
+    "Promoter", "Intron", "Exon", "5' UTR", "3' UTR",
+  )
+
+  if (ref_genome == "hg38") {
+    if (ref_source == "knownGene") {
+      gene_library_file <- download_rds("knownGene_hg38_processed.rds")
+    } else if (ref_source == "GENCODE") {
+      gene_library_file <- download_rds("GENCODE_v49_hg38_processed.rds")
+    } else {
+      stop("ref_source must be 'knownGene' or 'GENCODE'")
+    } 
+  } else if (ref_genome == "mm10") {
+    if (ref_source == "knownGene") {
+      gene_library_file <- download_rds("knownGene_mm10_processed.rds")
+    } else if (ref_source == "GENCODE") {
+      gene_library_file <- download_rds("GENCODE_vM23_mm10_processed.rds")
+    } else {
+      stop("ref_source must be 'knownGene' or 'GENCODE'")
+    }
+  } else {
+    stop("ref_genome must be 'hg38' or 'mm10'")
+  }
+
+  gene_library <- readRDS(gene_library_file)
+  style <- seqlevelsStyle(query_grl)[1]
+  if (seqlevelsStyle(gene_library)[1] != style) {
+    seqlevelsStyle(gene_library) <- style
+  }
+
+  gene_df <- annotate_by_overlap(queries = query_grl, library = gene_library, feature_col = "class", mode = mode, feature_order = gene_order)
+  write.table(gene_df, file = file.path(out_dir, "genic_distribution.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
+
+  # Create stacked barplot
+  if (plot) {
+    plot_stacked_barplot(df = gene_df, out_dir = out_dir, prefix = "genic", title = "Genic States", palette = "Set2")
   }
 }
