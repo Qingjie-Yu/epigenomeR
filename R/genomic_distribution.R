@@ -174,6 +174,7 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
 
   rownames(result_matrix) <- names(queries)
   result_df <- as.data.frame(result_matrix)
+  print(rowSums(test_df))
   return(result_df)
 }
 
@@ -204,7 +205,12 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
     colors <- RColorBrewer::brewer.pal(n_colors, palette)
     color_mapping <- setNames(colors, feature_levels)
   } else {
-    color_mapping <- setNames(palette, feature_levels)
+    color_mapping <- palette[feature_levels]
+    missing_colors <- is.na(color_mapping)
+    if (any(missing_colors)) {
+      warning("Some features missing colors, using gray")
+      color_mapping[missing_colors] <- "#CCCCCC"
+    }
   }
 
   p <- ggplot(df_long, aes(x = cluster, y = Frequency, fill = Feature)) + 
