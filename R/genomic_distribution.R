@@ -196,20 +196,21 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
     df_long$cluster <- factor(df_long$cluster, levels = rev(cluster_levels))
   }
   feature_levels <- colnames(df)
-  df_long$Feature <- factor(df_long$Feature, levels = feature_levels)  
-  df_long <- df_long %>% arrange(cluster, Feature) 
-  print(head(df_long, 20))
+  df_long$Feature <- factor(df_long$Feature, levels = feature_levels)
+  df_long <- df_long %>% arrange(cluster, Feature)
   
   if (length(palette) == 1) {
-    color_scale <- scale_fill_brewer(palette = palette)
+    n_colors <- length(feature_levels)
+    colors <- RColorBrewer::brewer.pal(n_colors, palette)
+    color_mapping <- setNames(colors, feature_levels)
   } else {
-    color_scale <- scale_fill_manual(values = palette)
+    color_mapping <- setNames(palette, feature_levels)
   }
 
   p <- ggplot(df_long, aes(x = cluster, y = Frequency, fill = Feature)) + 
     geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) +
     coord_flip() + 
-    color_scale +
+    scale_fill_manual(values = color_mapping, breaks = feature_levels) +
     labs(title = title, x = NULL, y = ylabel) +
     theme_minimal() +
     theme(
@@ -248,11 +249,15 @@ repeat_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode
     "rRNA", "tRNA", "snRNA", "scRNA", "srpRNA", "RNA",
     "Unknown"
   )
-  repeat_colors <- c(
-    "#3B82F6", "#60A5FA", "#34D399", "#6EE7B7", "#A78BFA", "#8B5CF6",  # transposable (6)
-    "#F59E0B", "#FBBF24", "#FDE68A",                                   # tandem (3)
-    "#EC4899", "#F9A8D4", "#FCA5A5", "#FED7AA", "#E9D5FF", "#DDD6FE", # RNA (6)
-    "#D1D5DB"                                                          # unknown (1)
+  repeat_colors <- setNames(
+    c(
+      "#3B82F6", "#60A5FA", "#34D399", "#6EE7B7", "#A78BFA", "#8B5CF6",  # transposable (6)
+      "#F59E0B", "#FBBF24", "#FDE68A", # tandem (3)
+      "#EC4899", "#F9A8D4", "#FCA5A5", "#FED7AA", "#E9D5FF", "#DDD6FE", # RNA (6)
+      "#D1D5DB", # unknown (1)
+      "#808080" # other(1)
+    ),
+    c(repeat_order, "other")
   )
 
   # Load reference library
@@ -294,17 +299,21 @@ chromhmm_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mo
     "ReprPCopenC",
     "BivProm", "ZNF",                               # developmental regulation & ZNF clusters
     "ReprPC", "HET",                                # Polycomb repression & constitutive heterochromatin
-    "Quies"                                         # quiescent background
+    "Quies"                                        # quiescent background
   )
 
-  hmm_colors <- c(
-    "#EF4444", "#FB9A99", "#FF7F00", "#FDBF6F", "#CAB2D6",  # active
-    "#B2DF8A", "#22C55E", "#10B981",                        # transcription
-    "#A6CEE3", "#6A3D9A",                                   # accessible
-    "#FFFF99",                                               # intermediate
-    "#B15928", "#FCCDE5",                                   # developmental
-    "#999999", "#636363",                                   # repressed
-    "#F7F7F7"                                               # quiescent
+  hmm_colors <- setNames(
+    c(
+      "#EF4444", "#FB9A99", "#FF7F00", "#FDBF6F", "#CAB2D6",  # active
+      "#B2DF8A", "#22C55E", "#10B981",                        # transcription
+      "#A6CEE3", "#6A3D9A",                                   # accessible
+      "#FFFF99",                                               # intermediate
+      "#B15928", "#FCCDE5",                                   # developmental
+      "#3B82F6", "#1E40AF",                                   # repressed
+      "#F7F7F7",                                               # quiescent
+      "#808080"
+    ),
+    c(hmm_order, "other")
   )
 
   # Load reference library
