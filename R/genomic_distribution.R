@@ -197,7 +197,9 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
   }
   feature_levels <- colnames(df)
   df_long$Feature <- factor(df_long$Feature, levels = feature_levels)  
-
+  df_long <- df_long %>% arrange(cluster, Feature) 
+  print(head(df_long, 20))
+  
   if (length(palette) == 1) {
     color_scale <- scale_fill_brewer(palette = palette)
   } else {
@@ -205,7 +207,7 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
   }
 
   p <- ggplot(df_long, aes(x = cluster, y = Frequency, fill = Feature)) + 
-    geom_bar(stat = "identity", position = "stack") +
+    geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) +
     coord_flip() + 
     color_scale +
     labs(title = title, x = NULL, y = ylabel) +
@@ -218,7 +220,7 @@ plot_stacked_barplot <- function(df, out_dir, prefix, title, palette = "Set3", y
       legend.key.size = unit(0.5, 'cm'),
       axis.title.x = element_text(size = 20)
     ) +
-    guides(fill = guide_legend(title = NULL, ncol = 1, reverse = TRUE))
+    guides(fill = guide_legend(title = NULL, ncol = 1))
   
   if (nrow(df) == 1) {
     p <- p + theme(

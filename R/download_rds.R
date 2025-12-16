@@ -1,7 +1,7 @@
 # Download and prepare reference RDS file from GitHub Release
 download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
   sha256_list <- c(
-    "ChromHMM_hg38.rds" = "",
+    "ChromHMM_hg38.rds" = "6ce5972399d2b712ab1f76722ef98e8573dc6e2366afd4dc10a670b016973edf",
     "GENCODE_v49_hg38.rds" = "279993a6862ae4487a4f5caba5560ca2bb298ad74c40a5ff5c23b5d23534f354",
     "ENCODE_cCRE_v4_hg38.rds" = "21e99022ed54b2c8edb106606a107fb9ed7eab0a480a5512ca50e28e4e81916d",
     "ENCODE_cCRE_v4_mm10.rds" = "2d43916cd954bd86806c9287ce2ce0f573231e214dee531e6efd5d2d72a89c08",
