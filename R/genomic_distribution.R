@@ -362,7 +362,7 @@ ccre_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode =
   ccre_colors <- setNames(
     c(
       "#8DD3C7","#80B1D3","#BEBADA",
-      "#FB8072","#FDB462","#B3DE69", "#BC80BD","#D9D9D9",
+      "#D55E00","#C77C2E","#E69F00", "#F4A261","#F6E8C3",
       "#D9D9D9"
     ),
     c(ccre_order, "other")
