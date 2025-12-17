@@ -169,7 +169,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
         mm10 = list(
             bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
             txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
-            gencode_file = download_rds("GENCODE_vM35_mm10_processed.rds")
+            gencode_file = download_rds("GENCODE_vM23_mm10_processed.rds")
         )
     )
     if (!ref_genome %in% names(genome_config)) {
