@@ -13,8 +13,8 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
     "GENCODE_vM23_mm10_processed.rds" = "1ae21ca2f4289389a63ce4331686b6ca3d93e4340188650db80352bf96466585",
     "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "f3e8429e790420a877dd9df72f70dd0985ad4ed41a429076414fcb64ff9928d7","knownGene_hg38_processed.rds" = "6946011ac979e0fe09d2a27427099419b6b0897b15e5d3d69be77acc98aec895",
     "knownGene_mm10_processed.rds" = "bfcb4bc634eced7451a5226cfbdf9fb6f0dc4041d03638037a978b7eebfc8299",
-    "RepeatMasker_hg38_processed.rds" = "",
-    "RepeatMasker_mm10_processed.rds" = "",
+    "RepeatMasker_hg38_processed.rds" = "804c134fe8da82ef18b7c5182b0f73092538d72aa6f66d5c26b02feedcb4aeba",
+    "RepeatMasker_mm10_processed.rds" = "6707f7c31787c6d3d2cf2fbc0ee0e171a5bca619bdc15b12cae359afc00e1cb3",
     "TFBS_lib_hg38.rds" = "59b2a61d9a78caef07e5b7a82fac03aa24266e1b5a5281ec16f15ba4711bbddc"
   )
 
