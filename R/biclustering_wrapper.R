@@ -60,7 +60,11 @@ biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km =
         cat("\n", strrep("=", 40), "\n", sep = "")
         cat("  Annotation")
         cat("\n", strrep("=", 40), "\n", sep = "")
-        biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, out_dir = out_dir, distributions = distributions, ref_genome = ref_genome)
-        biclustering_TFBS_enrichment(row_cluster_file_path = cluster_list$row_table, out_dir = out_dir, ref_genome = ref_genome)
+        genomic_dir <- file.path(out_dir, "genomic_distribution")
+        tfbs_dir    <- file.path(out_dir, "TFBS_enrichment")
+        dir.create(genomic_dir, recursive = TRUE, showWarnings = FALSE)
+        dir.create(tfbs_dir, recursive = TRUE, showWarnings = FALSE)
+        biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, out_dir = genomic_dir, distributions = distributions, ref_genome = ref_genome)
+        biclustering_TFBS_enrichment(row_cluster_file_path = cluster_list$row_table, out_dir = tfbs_dir, ref_genome = ref_genome)
     }
 }

@@ -160,22 +160,21 @@ get_nearest_gene <- function(query_gr, genes_gr) {
 get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "knownGene", style = "UCSC", n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
     set.seed(seed)
 
+    genome_config <- list(
+        hg38 = list(
+            bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
+            txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
+            gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
+        ),
+        mm10 = list(
+            bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
+            txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
+            gencode_file = download_rds("GENCODE_vM35_mm10_processed.rds")
+        )
+    )
     if (!ref_genome %in% names(genome_config)) {
         stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
     }
-
-    genome_config <- list(
-    hg38 = list(
-        bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
-        txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
-        gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
-    ),
-    mm10 = list(
-        bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
-        txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
-        gencode_file = download_rds("GENCODE_vM35_mm10_processed.rds")
-    )
-    )
     config <- genome_config[[ref_genome]]
 
     library(config$bsgenome, character.only = TRUE, quietly = TRUE)

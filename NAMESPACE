@@ -3,7 +3,20 @@ exportPattern("^[[:alpha:]]+")
 import(BiocGenerics)
 import(GenomicRanges)
 import(S4Vectors)
-import(data.table)
+importFrom(
+  data.table,
+  fread,
+  fwrite,
+  data.table,
+  as.data.table,
+  setDT,
+  set,
+  setnames,
+  setcolorder,
+  setkey,
+  setindex,
+  rbindlist
+)
 importFrom(glue, glue)
 importFrom(dplyr, "%>%")
 importFrom(tibble, rownames_to_column, column_to_rownames)
