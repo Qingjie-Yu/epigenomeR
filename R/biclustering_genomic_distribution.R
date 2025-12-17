@@ -1,14 +1,3 @@
-#' ### Parameters
-#'
-#' | Parameter | Type | Required | Description | Example |
-#' |-----------|------|----------|-------------|---------|
-#' | `row_cluster_file_path` | character | Yes | Path to TSV file containing cluster assignments. Must have columns: 'feature' (genomic coordinates in format chr_start_end) and 'label' (cluster ID). Typically uses row_table_clean.tsv from biclustering results | `row_cluster_file_path = "./row_table_clean.tsv"` |
-#' | `out_dir` | character | No (default: "./") | Directory to save all annotation outputs. Subdirectories will be created for each annotation type | `out_dir = "./distribution_annotation"` |
-#' | `distributions` | character vector | No (default: c("genic","ccre")) | Vector specifying which annotation types to perform. Valid options: "ccre" (cCRE and gene features), "chromhmm" (chromatin states), "repeat" (repeat elements). Can specify any combination | `distributions = c("genic", "ccre", "repeat", "chromhmm")` |
-#' | `ref_genome` | character | No (default: "hg38") | Reference genome version. Must be either "hg38" (Human GRCh38) or "mm10" (Mouse GRCm38) | `ref_genome = "hg38"` |
-#' | `ref_source` | character | No (default: "knownGene") | Gene annotation source for cCRE annotation. Options: "knownGene" (UCSC knownGene) or "GENCODE" (GENCODE distributions). Only used if "ccre" is in distributions parameter | `ref_source = "knownGene"` |
-#' | `mode` | character | No (default: "nearest") | Annotation mode for all annotation types. Options: "nearest" (assigns each region to closest feature) or "weighted" (proportional assignment by overlap length) | `mode = "nearest"` |
-#' | `plot` | logical | No (default: TRUE) | Whether to generate stacked barplot visualizations for each annotation type | `plot = TRUE` |
 
 biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "./", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest",  plot = TRUE) {
   # Validate parameters
@@ -43,7 +32,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
   row_cluster <- cbind(pos_df, row_cluster)
   row_gr <- makeGRangesFromDataFrame(
     row_cluster, 
-    seqnames.field = "seqnames", 
+    seqnames.field = "seqnames",
     start.field = "start", 
     end.field = "end", 
     keep.extra.columns = TRUE

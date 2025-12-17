@@ -22,7 +22,7 @@
 #   plot: Logical. Whether to generate diagnostic plots during filtering and biclustering steps.
 
 
-biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 3, apply_annotation = TRUE, ref_genome = "hg38", distributions = c("genic","ccre"),plot = TRUE) {
+biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 3, apply_annotation = TRUE, ref_genome = "hg38", distributions = c("genic","ccre"), plot = TRUE) {
     # Step1: Merge all the count matrix files
     if (is.vector(cm_path) && length(cm_path) > 1) {
         cat("\n", strrep("=", 40), "\n", sep = "")
@@ -37,7 +37,7 @@ biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km =
     cat("\n", strrep("=", 40), "\n", sep = "")
     cat("  Apply transformation")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    transformed_cm_path <- apply_transformation(cm_path = merged_cm_path, out_dir = out_dir)
+    transformed_cm_path <- apply_transformations(cm_path = merged_cm_path, out_dir = out_dir)
 
     # Step3: Filter highly variable regions
     if (apply_filter) {
