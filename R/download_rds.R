@@ -1,21 +1,16 @@
 # Download and prepare reference RDS file from GitHub Release
-download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
+download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
   sha256_list <- c(
-    "ChromHMM_hg38.rds" = "6ce5972399d2b712ab1f76722ef98e8573dc6e2366afd4dc10a670b016973edf",
-    "GENCODE_v49_hg38.rds" = "279993a6862ae4487a4f5caba5560ca2bb298ad74c40a5ff5c23b5d23534f354",
-    "ENCODE_cCRE_v4_hg38.rds" = "21e99022ed54b2c8edb106606a107fb9ed7eab0a480a5512ca50e28e4e81916d",
-    "ENCODE_cCRE_v4_mm10.rds" = "2d43916cd954bd86806c9287ce2ce0f573231e214dee531e6efd5d2d72a89c08",
-    "ChromHMM_mm10.rds" = "d7bcf63a4e95e9f3c68c36358f583ae4b2492b6ebda8a9ff8834f60aebf69a0b",
-    "GENCODE_v49_hg38.rds" = "46d059596b26dbcf231cf2760e2a5509cba9926a3b188aec413f5e8b1f35b7e9",
-    "GENCODE_v49_hg38_processed.rds" = "3b946ab7869b0bd48f902ab6c95582c1a7b4d60b19e0d304d557a6d7fcef5cf4",
-    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "fddab927b927c2874085645df12aa2a30d6ed9c9e78bb7dc714144a695641b3a",
-    "GENCODE_vM23_mm10.rds" = "8163c36daf7be227620c93692500058331ef21ebb86a57acb09d246745c8252d",
-    "GENCODE_vM23_mm10_processed.rds" = "1ae21ca2f4289389a63ce4331686b6ca3d93e4340188650db80352bf96466585",
-    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "f3e8429e790420a877dd9df72f70dd0985ad4ed41a429076414fcb64ff9928d7","knownGene_hg38_processed.rds" = "6946011ac979e0fe09d2a27427099419b6b0897b15e5d3d69be77acc98aec895",
-    "knownGene_mm10_processed.rds" = "bfcb4bc634eced7451a5226cfbdf9fb6f0dc4041d03638037a978b7eebfc8299",
-    "RepeatMasker_hg38_processed.rds" = "804c134fe8da82ef18b7c5182b0f73092538d72aa6f66d5c26b02feedcb4aeba",
-    "RepeatMasker_mm10_processed.rds" = "6707f7c31787c6d3d2cf2fbc0ee0e171a5bca619bdc15b12cae359afc00e1cb3",
-    "TFBS_lib_hg38.rds" = "59b2a61d9a78caef07e5b7a82fac03aa24266e1b5a5281ec16f15ba4711bbddc"
+    "ChromHMM_hg38.rds" = "7c94b0691e15b318a42cf6316ae9486fbf9ef1325e6baeb3cfa4fbe9fcbc975a",
+    "ChromHMM_mm10.rds" = "e44aa16d04cdcf5399a751695c030170b3870c970146d7696dea98afd59e01f5",
+    "ENCODE_cCRE_v4_hg38.rds" = "540ea690b6df3fc0116cdf98155d459164ccd3d2e5f68f0f134464b91a471c80",
+    "ENCODE_cCRE_v4_mm10.rds" = "ab0cfb2270776f7bdf7236887eed4d498e4c0d77037286ea7d27338af3b3de41",
+    "GENCODE_v49_hg38_processed.rds" = "856c8c96b050b8cf3b05c87ff3351b673f1a51c2768507b05b7137f79a749a2d",
+    "GENCODE_vM23_mm10_processed.rds" = "b1bc36df63f043fb1cda950d6af247cd79537b1f38d106eb4894846a429569e5","knownGene_hg38_processed.rds" = "7248c3d519f953f96d6c2ca16643ae02d2d9f922fe4f2bcefa1071cbff5b628f",
+    "knownGene_mm10_processed.rds" = "61fd67732af331069f7a8151870460b23339b2717a807fa691c4795c78f831a7",
+    "RepeatMasker_hg38_processed.rds" = "1ba1ae0c85cf871be32868ef4b21438ea630de44614101cf480a47e942765ee5",
+    "RepeatMasker_mm10_processed.rds" = "87830e07f1abf7fd69daae2f45e027b547f223946e357ea167c094ee40476c0a",
+    "TFBS_lib_hg38.rds" = "51d5191c9946fa2896e016cd2bd1e6b232021715d2676979b70b1d1c7ba68d0c"
   )
 
   cache_dir <- rappdirs::user_cache_dir("epigenomeR")
@@ -34,11 +29,11 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
   if (force || !file.exists(rds_path)) {
     message("Downloading: ", zip_name)
     utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
-    sha256_local <- digest::digest(zip_path, algo = "sha256", serialize = FALSE)
-    if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
-      stop("sha256 mismatch for ", zip_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
-    }
     utils::unzip(zip_path, exdir = cache_dir)
+  }
+  sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
+  if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
+    stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
   }
   
   normalizePath(rds_path)
