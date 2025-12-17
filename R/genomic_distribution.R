@@ -267,9 +267,9 @@ repeat_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode
 
   # Load reference library
   if (ref_genome == "hg38") {
-    repeat_library_file <- download_rds("RepeatMasker_hg38.rds")
+    repeat_library_file <- download_rds("RepeatMasker_hg38_processed.rds")
   } else if (ref_genome == "mm10") {
-    repeat_library_file <- download_rds("RepeatMasker_mm10.rds")
+    repeat_library_file <- download_rds("RepeatMasker_mm10_processed.rds")
   } else {
     stop("ref_genome must be 'hg38' or 'mm10'")
   }
