@@ -11,12 +11,12 @@
 # Parameters:
 #   cm_path: Path to input count matrix (.feather file)
 #   transformations: Character vector of transformation steps to apply in order. Default: c("remove0", "libnorm", "log2p1", "qnorm")
-#   save_dir: Directory path for saving output files
+#   out_dir: Directory path for saving output files
 #   save_each_step: Logical. If TRUE, save intermediate results after each transformation. Default: FALSE
 # 
 # Output: Saves transformed count matrix as .feather file with "_transformed" suffix.  Returns the full output file path (character).
 
-apply_transformations <- function(cm_path, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), save_dir, save_each_step = FALSE) {
+apply_transformations <- function(cm_path, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), out_dir, save_each_step = FALSE) {
   suppressPackageStartupMessages({
     library(arrow)
     library(tibble)
@@ -39,8 +39,8 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
     df[[first_col]] <- NULL
   }
 
-  if (!dir.exists(save_dir)) {
-    dir.create(save_dir, recursive = TRUE)
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
   }
 
   applied <- c()
@@ -115,14 +115,14 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
     if (save_each_step == TRUE) {
       df_to_save <- rownames_to_column(as.data.frame(df), var = pos_colname)
       file_name <- paste0(input_prefix, "_", paste(applied, collapse = "_"), ".feather")
-      save_path <- file.path(save_dir, file_name)
+      save_path <- file.path(out_dir, file_name)
       write_feather(df_to_save, save_path)
     }
   }
   
   df_to_save <- rownames_to_column(as.data.frame(df), var = pos_colname)
   output_name <- paste0(input_prefix, "_transformed.feather")
-  output_path <- file.path(save_dir, output_name)
+  output_path <- file.path(out_dir, output_name)
   write_feather(df_to_save, output_path)
   return(output_path)
 }

@@ -5,7 +5,7 @@
 #   regions   : Either
 #               - a single integer (bin size in bp), e.g. regions = 5000, which tiles the genome into fixed-size bins; or
 #               - a single file path to a BED / TSV / TXT / CSV file containing custom genomic regions.
-#   save_dir  : Directory where the output Feather file will be written. Default "./".
+#   out_dir  : Directory where the output Feather file will be written. Default "./".
 #   ref_genome: Reference genome used when regions is numeric. One of "hg38" or "mm10". Ignored when custom regions are provided.
 #   sample_name: Optional character. If provided, it is prepended to the output filename.
 #   do_qc     : Whether to perform quality control filtering on BAM files.
@@ -13,12 +13,12 @@
 #   force_chr_coord: When TRUE, region IDs ("pos" column) are always  "CHR_start_end", even if gene_id is available. When FALSE and a non-empty gene_id column exists, gene_id is used as the region identifier.
 # Output: Writes a Feather file whose first column is 'pos' and remaining columns are fragment-overlap counts per BAM file. Returns the full output file path (character).
 
-build_count_matrix <- function(bam_path, regions, save_dir = "./", ref_genome = "hg38", sample_name = NULL, do_qc = FALSE, qc_percent = 0.25, force_chr_coord = FALSE) {
+build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, do_qc = FALSE, qc_percent = 0.25, force_chr_coord = FALSE) {
     start_time <- Sys.time()
 
     # Create folder
-    if (!dir.exists(save_dir)) {
-        dir.create(save_dir, recursive = TRUE)
+    if (!dir.exists(out_dir)) {
+        dir.create(out_dir, recursive = TRUE)
     }
 
     # initiate packages
@@ -279,7 +279,7 @@ build_count_matrix <- function(bam_path, regions, save_dir = "./", ref_genome = 
     preprocess_time_taken <- round(preprocess_time - start_time, 2)
     cat("preprocess time taken: ", preprocess_time_taken, "\n")
 
-    output_path <- file.path(save_dir, output_filename)
+    output_path <- file.path(out_dir, output_filename)
     write_feather(binChriDataframe_full, output_path)
 
     saving_time <- Sys.time()
