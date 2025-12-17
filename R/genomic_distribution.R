@@ -281,7 +281,7 @@ repeat_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode
   }
 
   # Annotate query regions with repeat elements
-  repeat_df <- annotate_by_overlap(queries = query, library = repeat_library, feature_col = "repClass", mode = mode, feature_order = repeat_order)
+  repeat_df <- annotate_by_overlap(queries = query, library = repeat_library, feature_col = "rep_class", mode = mode, feature_order = repeat_order)
   write.table(repeat_df, file = file.path(out_dir, "repeat_distribution.tsv"), sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
   
   # Create stacked barplot
