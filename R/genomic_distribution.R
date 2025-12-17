@@ -363,7 +363,7 @@ ccre_distribution <- function(query, out_dir = "./", ref_genome = "hg38", mode =
     c(
       "#8DD3C7","#80B1D3","#BEBADA",
       "#FB8072","#FDB462","#B3DE69", "#BC80BD","#D9D9D9",
-      "#D9D9D9",
+      "#D9D9D9"
     ),
     c(ccre_order, "other")
   )
@@ -447,14 +447,14 @@ genic_distribution <- function(query, out_dir = "./", ref_genome = "hg38", ref_s
 # Genomic Distribution Annotation Wrapper
 # Description:
 #   Comprehensive genomic annotation function that performs multiple types of
-#   genomic feature annotations on query regions. Supports genic structures,
+#   genomic feature distributions on query regions. Supports genic structures,
 #   cCRE elements, ChromHMM states, and repeat elements.
 #
 # Parameters:
 #   query: GRangesList or GRanges object containing query genomic regions 
 #          (e.g., peak sets, biclustering-derived clusters).
 #   out_dir: Directory to save output files (tables and plots).
-#   annotations: Character vector specifying which annotation types to perform.
+#   distributions: Character vector specifying which annotation types to perform.
 #                Options: "genic", "ccre", "chromhmm", "repeat"
 #                Default: c("genic", "ccre")
 #   ref_genome: Reference genome version. Must be either "hg38" or "mm10".
@@ -476,13 +476,13 @@ genic_distribution <- function(query, out_dir = "./", ref_genome = "hg38", ref_s
 #   - ccre_distribution.tsv & ccre_distribution.pdf
 #   - chromhmm_distribution.tsv & chromhmm_distribution.pdf
 #   - repeat_distribution.tsv & repeat_distribution.pdf
-genomic_distribution <- function(query, out_dir, annotations = c("genic", "ccre"),ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+genomic_distribution <- function(query, out_dir, distributions = c("genic", "ccre"),ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE)
   }
 
- # Perform selected annotations
-  if ("genic" %in% annotations) {
+ # Perform selected distributions
+  if ("genic" %in% distributions) {
     message("\n========== Running Genic annotation ==========")
     genic_distribution(
         query = query,
@@ -495,7 +495,7 @@ genomic_distribution <- function(query, out_dir, annotations = c("genic", "ccre"
     message("Genic annotation complete. Results saved to: ", out_dir)
   }
 
-  if ("ccre" %in% annotations) {
+  if ("ccre" %in% distributions) {
     message("\n========== Running cCRE annotation ==========")
     ccre_distribution(
       query = query,
@@ -507,7 +507,7 @@ genomic_distribution <- function(query, out_dir, annotations = c("genic", "ccre"
     message("cCRE annotation complete. Results saved to: ", out_dir)
   }
   
-  if ("chromhmm" %in% annotations) {
+  if ("chromhmm" %in% distributions) {
     message("\n========== Running ChromHMM annotation ==========")
     chromhmm_distribution(
       query = query,
@@ -519,7 +519,7 @@ genomic_distribution <- function(query, out_dir, annotations = c("genic", "ccre"
     message("ChromHMM annotation complete. Results saved to: ", out_dir)
   }
   
-  if ("repeat" %in% annotations) {
+  if ("repeat" %in% distributions) {
     message("\n========== Running Repeat annotation ==========")
     repeat_distribution(
       query = query,
