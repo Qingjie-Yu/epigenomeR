@@ -32,7 +32,8 @@ calculate_TFBS_enrichment <- function(target_region, control_region, regions = N
     mm10 = "TFBS_lib_mm10.rds",
     stop("Invalid ref_genome")
   )
-  TFBS_library <- readRDS(system.file("extdata", TFBS_library_file, package = "epigenomeR"))
+  TFBS_library_file <- download_rds(TFBS_library_file)
+  TFBS_library <- readRDS(TFBS_library_file)
   message(glue("Using reference genome {ref_genome} with {length(TFBS_library)} TFs"))
 
   if (is.null(style)) {
