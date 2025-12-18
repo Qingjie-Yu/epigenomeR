@@ -311,6 +311,7 @@ get_matched_control <- function(query, ref_genome = "hg38", ref_source = "knownG
     } else {
         genes_gr <- readRDS(config$gencode_file)
         genes_gr <- genes_gr[genes_gr$type == "gene"]
+        names(genes_gr) <- genes_gr$gene_name
         mcols(genes_gr) <- NULL
     }
 
