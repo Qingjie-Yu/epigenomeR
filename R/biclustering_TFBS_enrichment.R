@@ -83,7 +83,7 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
     tsv_paths <- lapply(names(row_grl), function(label) {
         cat("\n", "Processing TFBS enrichment for:", label, "\n")
         out_path <- file.path(out_dir, paste0("TFBS_enrichment_cluster_", label, ".tsv"))
-        calculate_TFBS_enrichment(target_region = row_grl[[label]], control_region = control_gr,out_path = out_path, ref_genome = ref_genome, style = style)
+        TFBS_enrichment(target_region = row_grl[[label]], control_region = control_gr,out_path = out_path, ref_genome = ref_genome, style = style)
         out_path
     })
     tsv_paths <- unlist(tsv_paths)

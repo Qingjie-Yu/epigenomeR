@@ -6,12 +6,20 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
     "ENCODE_cCRE_v4_hg38.rds" = "540ea690b6df3fc0116cdf98155d459164ccd3d2e5f68f0f134464b91a471c80",
     "ENCODE_cCRE_v4_mm10.rds" = "ab0cfb2270776f7bdf7236887eed4d498e4c0d77037286ea7d27338af3b3de41",
     "GENCODE_v49_hg38_processed.rds" = "856c8c96b050b8cf3b05c87ff3351b673f1a51c2768507b05b7137f79a749a2d",
-    "GENCODE_vM23_mm10_processed.rds" = "b1bc36df63f043fb1cda950d6af247cd79537b1f38d106eb4894846a429569e5","knownGene_hg38_processed.rds" = "7248c3d519f953f96d6c2ca16643ae02d2d9f922fe4f2bcefa1071cbff5b628f",
+    "GENCODE_vM23_mm10_processed.rds" = "b1bc36df63f043fb1cda950d6af247cd79537b1f38d106eb4894846a429569e5",
+    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "e68e4ceb7780ceb8681663d32fe6887513697bd09dee162cd6d0ba70bf2239c7",
+    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "11354aed12cca825e05b0fcb3c755ae45922685992acdea859a7e472d98efc57",
+    "knownGene_hg38_processed.rds" = "7248c3d519f953f96d6c2ca16643ae02d2d9f922fe4f2bcefa1071cbff5b628f",
     "knownGene_mm10_processed.rds" = "61fd67732af331069f7a8151870460b23339b2717a807fa691c4795c78f831a7",
     "RepeatMasker_hg38_processed.rds" = "1ba1ae0c85cf871be32868ef4b21438ea630de44614101cf480a47e942765ee5",
     "RepeatMasker_mm10_processed.rds" = "87830e07f1abf7fd69daae2f45e027b547f223946e357ea167c094ee40476c0a",
     "TFBS_lib_hg38.rds" = "51d5191c9946fa2896e016cd2bd1e6b232021715d2676979b70b1d1c7ba68d0c"
   )
+
+  # Validate rds_name
+  if (!rds_name %in% names(sha256_list)) {
+    stop("Unknown file: ", rds_name)
+  }
 
   cache_dir <- rappdirs::user_cache_dir("epigenomeR")
   dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
@@ -26,14 +34,23 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
   )
   zip_url <- paste0(base_url, "/", zip_name)
 
-  if (force || !file.exists(rds_path)) {
+  needs_download <- force || !file.exists(rds_path)
+  if (!needs_download) {
+    sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
+    if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
+      message("Checksum mismatch for ", rds_name, ". Re-downloading...")
+      needs_download <- TRUE
+    }
+  }
+
+  if (needs_download) {
     message("Downloading: ", zip_name)
     utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
     utils::unzip(zip_path, exdir = cache_dir)
-  }
-  sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
-  if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
-    stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+    sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
+    if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
+      stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+    }
   }
   
   normalizePath(rds_path)

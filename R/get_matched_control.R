@@ -23,6 +23,8 @@
 #                     (negative = upstream, positive = downstream)
 
 get_nearest_gene <- function(query_gr, genes_gr) {
+    library(dplyr, quietly = TRUE)
+
     query_mid <- resize(query_gr, width = 1, fix = "center")
     overlaps <- findOverlaps(query_mid, genes_gr)
     n_query <- length(query_gr)
@@ -43,9 +45,9 @@ get_nearest_gene <- function(query_gr, genes_gr) {
         )
 
         best_overlaps <- overlap_df %>% 
-            group_by(query_idx) %>% 
-            slice_min(gene_width, n = 1, with_ties = FALSE) %>%
-            ungroup()
+            dplyr::group_by(query_idx) %>% 
+            dplyr::slice_min(gene_width, n = 1, with_ties = FALSE) %>%
+            dplyr::ungroup()
         
         for (i in seq_len(nrow(best_overlaps))) {
             q_idx <- best_overlaps$query_idx[i]
@@ -90,10 +92,10 @@ get_nearest_gene <- function(query_gr, genes_gr) {
                 )
                 
                 best_matches <- dist_df %>%
-                    group_by(q_local_idx) %>%
-                    filter(distance == min(distance)) %>%
-                    slice_min(gene_width, n = 1, with_ties = FALSE) %>%
-                    ungroup()
+                    dplyr::group_by(q_local_idx) %>%
+                    dplyr::filter(distance == min(distance)) %>%
+                    dplyr::slice_min(gene_width, n = 1, with_ties = FALSE) %>%
+                    dplyr::ungroup()
                 
                 for (i in seq_len(nrow(best_matches))) {
                     q_local_idx <- best_matches$q_local_idx[i]
@@ -164,12 +166,12 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
         hg38 = list(
             bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
             txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
-            gencode_file = download_rds("GENCODE_v49_hg38_processed.rds")
+            gencode_file = download_rds("GENCODE_v49_hg38_single_tx_by_evidence.rds")
         ),
         mm10 = list(
             bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
             txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
-            gencode_file = download_rds("GENCODE_vM23_mm10_processed.rds")
+            gencode_file = download_rds("GENCODE_vM23_mm10_single_tx_by_evidence.rds")
         )
     )
     if (!ref_genome %in% names(genome_config)) {
