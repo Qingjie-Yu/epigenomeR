@@ -53,8 +53,8 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   )
   
   pdf(out_path, width = pdf_width, height = pdf_height)
-  draw(h, heatmap_legend_side = "right", padding = unit(c(4, 4, 4, 4), "mm"))
-  draw(lgd,  x = unit(1, "npc") - unit(30, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
+  draw(h, padding = unit(c(4, 4, 4, 20), "mm"))
+  draw(lgd,  x = unit(1, "npc") - unit(18, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
   dev.off()  
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }
