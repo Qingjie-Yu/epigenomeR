@@ -35,12 +35,13 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
       title_gp = gpar(fontsize = 8),
       labels_gp = gpar(fontsize = 6),
       legend_direction = "vertical",
-      legend_height = legend_height
+      legend_height = legend_height,
+      gap = unit(10, "mm")
     )
   )
 
   pdf_width <- convertWidth(
-    unit(ncol(plot_data) * cell_width, "mm") + unit(40, "mm"), 
+    unit(ncol(plot_data) * cell_width, "mm") + unit(60, "mm"), 
     "inches", 
     valueOnly = TRUE
   )
@@ -51,7 +52,7 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   )
   
   pdf(out_path, width = pdf_width, height = pdf_height)
-  draw(h, heatmap_legend_side = "right", ht_gap = unit(10, "mm"), padding = unit(c(4, 4, 4, 4), "mm"))
+  draw(h, heatmap_legend_side = "right", padding = unit(c(4, 30, 4, 4), "mm"))
   dev.off()  
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }
