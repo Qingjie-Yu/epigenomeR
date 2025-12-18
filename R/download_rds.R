@@ -21,7 +21,7 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
     stop("Unknown file: ", rds_name)
   }
 
-  cache_dir <- rappdirs::user_cache_dir("epigenomeR")
+  cache_dir <- rappdirs::user_cache_dir("multiEpiCore")
   dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
 
   zip_name <- sub("\\.rds$", ".zip", rds_name)
@@ -29,7 +29,7 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
   rds_path <- file.path(cache_dir, rds_name)
 
   base_url <- sprintf(
-    "https://github.com/Qingjie-Yu/epigenomeR/releases/download/%s",
+    "https://github.com/Qingjie-Yu/multiEpiCore/releases/download/%s",
     release_tag
   )
   zip_url <- paste0(base_url, "/", zip_name)

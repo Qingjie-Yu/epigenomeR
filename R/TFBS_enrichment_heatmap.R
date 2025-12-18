@@ -172,7 +172,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   odds_ratio_log2 <- log2(odds_ratio_mat)
   max_abs_val <- max(abs(odds_ratio_log2), na.rm = TRUE)
   col_fun <- colorRamp2(c(-max_abs_val, 0, max_abs_val), c("#3155C3", "white", "#AF0525"))
-  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment_all.pdf"), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster) 
+  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment.pdf"), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster) 
 
   # second heatmap (top n)
   if (!is.null(top_n) && is.numeric(top_n) && top_n > 0) {

@@ -1,6 +1,6 @@
 filter_target_pairs <- function(percentage_cutoff = 0.25, target_pairs=NULL, frag_len_num_file=NULL) {
   if (is.null(target_pair_mapping_df_path)) {
-    data("frag_len_num", package = "epigenomeR", envir = environment())
+    data("frag_len_num", package = "multiEpiCore", envir = environment())
   } else {
     frag_len_num <- read.table(frag_len_num_file, sep = "\t", header = TRUE, row.names = 1)
   }
