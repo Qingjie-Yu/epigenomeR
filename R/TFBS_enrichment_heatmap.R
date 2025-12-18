@@ -13,7 +13,7 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   col_fontsize <- 10
   cell_height <- cell_width / aspect_ratio
   row_fontsize <- col_fontsize / aspect_ratio
-  legend_height <- nrow(plot_data) * unit(cell_height, "mm")
+  legend_height <- nrow(plot_data) * unit(cell_height, "mm") / 3
 
   h <- Heatmap(
     plot_data, 
@@ -32,8 +32,8 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
       title = name,
       title = "topcenter", 
       color_bar = "continuous",
-      title_gp = gpar(fontsize = 10),
-      labels_gp = gpar(fontsize = 8),
+      title_gp = gpar(fontsize = 8),
+      labels_gp = gpar(fontsize = 6),
       legend_direction = "vertical",
       legend_height = legend_height
     )
@@ -178,7 +178,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
     top_tfbs <- names(head(sort(cv, decreasing =  TRUE), top_n))
     odds_ratio_log2_topn <- odds_ratio_log2[top_tfbs, , drop = FALSE]
     cat(glue("Selected top {top_n} TFBS based on coefficient of variation"), "\n")
-    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_heatmap_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster)
+    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_heatmap_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster, aspect_ratio = 1)
   }
 
   # save .csv

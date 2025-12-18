@@ -23,7 +23,9 @@
 #                     (negative = upstream, positive = downstream)
 
 get_nearest_gene <- function(query_gr, genes_gr) {
-    library(dplyr, quietly = TRUE)
+    suppressPackageStartupMessages({
+        library(dplyr, quietly = TRUE)
+    })
 
     query_mid <- resize(query_gr, width = 1, fix = "center")
     overlaps <- findOverlaps(query_mid, genes_gr)
@@ -132,75 +134,13 @@ get_nearest_gene <- function(query_gr, genes_gr) {
     return(result_final)
 }
 
+# Generate matched control regions for a single GRanges object
+#
+# Internal function that creates control regions by matching gene lengths
+# and preserving TSS distances.
 
-# Generate matched control regions
-#
-# This function generates background control regions by randomly selecting genes
-# with similar length to the nearest gene of each target peak, then placing
-# control regions at the same TSS distance on the selected genes. This approach
-# preserves the relationship between peaks and gene structure while avoiding
-# biases from using the same genomic neighborhoods.
-#
-# Parameters:
-#   target_gr: GRanges object of target peak regions
-#   ref_genome: Reference genome version ("hg38" or "mm10")
-#   ref_source: Gene annotation source used to define gene models and TSS
-#               coordinates. Supported options are:
-#               - "knownGene": Uses the UCSC knownGene annotation obtained via
-#                 the Bioconductor package TxDb.Hsapiens.UCSC.hg38.knownGene
-#               - "GENCODE": Uses GENCODE gene annotations (GENCODE v49).
-#   style: Chromosome naming style (default: "UCSC")
-#   n_rep: Number of control regions to generate per target peak
-#   regions: Width of control regions in base pairs
-#   seed: Random seed for reproducibility
-#   length_tolerance: Initial tolerance for gene length matching (±20% default)
-#                     Automatically relaxed up to ±100% if insufficient candidates
-#
-# Returns:
-#   A GRanges object containing all control regions
-
-get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "knownGene", style = "UCSC", n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
+control_regions_single <- function(query_gr, genes_gr, chr_sizes, n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
     set.seed(seed)
-
-    genome_config <- list(
-        hg38 = list(
-            bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
-            txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
-            gencode_file = download_rds("GENCODE_v49_hg38_single_tx_by_evidence.rds")
-        ),
-        mm10 = list(
-            bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
-            txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
-            gencode_file = download_rds("GENCODE_vM23_mm10_single_tx_by_evidence.rds")
-        )
-    )
-    if (!ref_genome %in% names(genome_config)) {
-        stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
-    }
-    config <- genome_config[[ref_genome]]
-
-    library(config$bsgenome, character.only = TRUE, quietly = TRUE)
-    bs <- get(config$bsgenome, envir = asNamespace(config$bsgenome))
-
-    if (ref_source == "knownGene") {
-        library(config$txdb, character.only = TRUE, quietly = TRUE)
-        txdb <- get(config$txdb, envir = asNamespace(config$txdb))
-        genes_gr <- suppressMessages(genes(txdb))
-    } else {
-        genes_gr <- readRDS(gencode_file)
-        genes_gr <- genes_gr[genes_gr$type == "gene"]
-        mcols(genes_gr) <- NULL
-    }
-
-    seqlevelsStyle(bs) <- style
-    chr_list <- GenomeInfoDb::standardChromosomes(bs)
-    chr_list <- chr_list[!tolower(chr_list) %in% c("mt", "chrm", "m", "mito")]
-    chr_sizes <- seqlengths(bs)[chr_list]
-
-    seqlevelsStyle(genes_gr) <- style
-    genes_gr <- genes_gr[seqnames(genes_gr) %in% chr_list]
-    seqlevels(genes_gr) <- chr_list
-    genes_gr <- sort(genes_gr)
 
     gene_lengths <- width(genes_gr)
     gene_names <- names(genes_gr)
@@ -209,7 +149,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
     gene_starts <- start(genes_gr)
     gene_ends <- end(genes_gr)
 
-    target_with_genes <- get_nearest_gene(target_gr, genes_gr)
+    target_with_genes <- get_nearest_gene(query_gr, genes_gr)
     n_targets <- nrow(target_with_genes)
     half_width <- floor(regions / 2)
 
@@ -221,6 +161,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
         orig_gene_length <- target_with_genes$gene_length[i]
         tss_distance <- target_with_genes$tss_distance[i]
 
+        # Find candidate genes with similar length
         tol <- length_tolerance
         lower_bound <- orig_gene_length * (1 - tol)
         upper_bound <- orig_gene_length * (1 + tol)
@@ -228,6 +169,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
                           (gene_lengths <= upper_bound) & 
                           (gene_names != orig_gene)
 
+        # Relax tolerance if insufficient candidates
         while (sum(candidate_mask) < n_rep * 2 && tol <= 0.9) {
             tol <- tol + 0.1
             lower_bound <- orig_gene_length * (1 - tol)
@@ -248,6 +190,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
             next
         }
 
+        # Sample candidate genes and create control regions
         n_valid <- 0
         max_attempts <- min(length(candidate_indices), n_rep * 5)
         sampled_indices <- sample(candidate_indices, size = max_attempts, replace = FALSE)
@@ -255,8 +198,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
         for (idx in sampled_indices) {
             if (n_valid >= n_rep) break
 
-            # Control center = TSS + tss_distance
-            # Since tss_distance is already (peak_pos - TSS), this correctly reconstructs position
+            # Calculate control region position preserving TSS distance
             if (gene_strands[idx] == "-") {
                 control_center <- gene_ends[idx] + tss_distance
             } else {
@@ -267,6 +209,7 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
             control_end <- control_center + half_width - 1
             control_chr <- gene_chrs[idx]
             
+            # Validate chromosome boundaries
             if (control_start >= 1 && control_end <= chr_sizes[control_chr]) {
                 control_list[[control_idx]] <- GRanges(
                     seqnames = control_chr,
@@ -290,5 +233,128 @@ get_matched_control <- function(target_gr, ref_genome = "hg38", ref_source = "kn
     }
 
     control_gr <- unlist(GRangesList(control_list))
+    return(control_gr)
+}
+
+
+# Generate matched control regions
+#
+# This function generates background control regions by randomly selecting genes
+# with similar length to the nearest gene of each target peak, then placing
+# control regions at the same TSS distance on the selected genes. This approach
+# preserves the relationship between peaks and gene structure while avoiding
+# biases from using the same genomic neighborhoods.
+#
+# Parameters:
+#   query: GRanges or GRangesList object of target peak regions. If GRangesList,
+#          control regions are generated separately for each element and then
+#          combined into a single GRanges object.
+#   ref_genome: Reference genome version ("hg38" or "mm10")
+#   ref_source: Gene annotation source ("knownGene" or "GENCODE")
+#               - "knownGene": UCSC knownGene annotation from TxDb packages
+#               - "GENCODE": GENCODE annotations (v49 for hg38, vM23 for mm10)
+#   style: Chromosome naming style (e.g., "UCSC" or "NCBI"). If NULL, inferred
+#          from query object. Default: NULL
+#   n_rep: Number of control regions to generate per target peak. Default: 1
+#   regions: Width of control regions in base pairs. Default: 800
+#   seed: Random seed for reproducibility. Default: 42
+#   length_tolerance: Initial tolerance for gene length matching (±20% default).
+#                     Automatically relaxed up to ±100% if insufficient candidates.
+#
+# Returns:
+#   A GRanges object containing all control regions. If input is GRangesList,
+#   control regions from all elements are combined into a single GRanges.
+
+get_matched_control <- function(query, ref_genome = "hg38", ref_source = "knownGene", style = NULL, n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
+    # Validate input type
+    if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {
+        stop("query must be a GRanges or GRangesList object")
+    }
+    
+    # Infer chromosome style from query if not provided
+    if (is.null(style)) {
+        style <- seqlevelsStyle(query)[1]
+    }
+
+    # Configure genome-specific resources
+    genome_config <- list(
+        hg38 = list(
+            bsgenome = "BSgenome.Hsapiens.UCSC.hg38",
+            txdb = "TxDb.Hsapiens.UCSC.hg38.knownGene",
+            gencode_file = download_rds("GENCODE_v49_hg38_single_tx_by_evidence.rds")
+        ),
+        mm10 = list(
+            bsgenome = "BSgenome.Mmusculus.UCSC.mm10",
+            txdb = "TxDb.Mmusculus.UCSC.mm10.knownGene",
+            gencode_file = download_rds("GENCODE_vM23_mm10_single_tx_by_evidence.rds")
+        )
+    )
+    
+    if (!ref_genome %in% names(genome_config)) {
+        stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
+    }
+    config <- genome_config[[ref_genome]]
+
+    # Load genome sequence
+    suppressPackageStartupMessages({
+        library(config$bsgenome, character.only = TRUE, quietly = TRUE)
+    })
+    bs <- get(config$bsgenome, envir = asNamespace(config$bsgenome))
+
+    # Load gene annotations
+    if (ref_source == "knownGene") {
+        suppressPackageStartupMessages({
+            library(config$txdb, character.only = TRUE, quietly = TRUE)
+        })
+        txdb <- get(config$txdb, envir = asNamespace(config$txdb))
+        genes_gr <- suppressMessages(genes(txdb))
+    } else {
+        genes_gr <- readRDS(config$gencode_file)
+        genes_gr <- genes_gr[genes_gr$type == "gene"]
+        mcols(genes_gr) <- NULL
+    }
+
+    # Prepare chromosome information
+    seqlevelsStyle(bs) <- style
+    chr_list <- GenomeInfoDb::standardChromosomes(bs)
+    chr_list <- chr_list[!tolower(chr_list) %in% c("mt", "chrm", "m", "mito")]
+    chr_sizes <- seqlengths(bs)[chr_list]
+
+    # Filter and sort gene annotations
+    seqlevelsStyle(genes_gr) <- style
+    genes_gr <- genes_gr[seqnames(genes_gr) %in% chr_list]
+    seqlevels(genes_gr) <- chr_list
+    genes_gr <- sort(genes_gr)
+
+    # Generate control regions
+    if (inherits(query, "GRanges")) {
+        control_gr <- control_regions_single(
+            query_gr = query, 
+            genes_gr = genes_gr, 
+            chr_sizes = chr_sizes,
+            n_rep = n_rep, 
+            regions = regions, 
+            seed = seed,
+            length_tolerance = length_tolerance
+        )
+    } else {
+        # Process each element of GRangesList separately
+        control_grl <- lapply(names(query), function(label) {
+            cat("\nProcessing cluster:", label, "with", length(query[[label]]), "regions\n")
+            control_gr <- control_regions_single(
+                query_gr = query[[label]], 
+                genes_gr = genes_gr, 
+                chr_sizes = chr_sizes,
+                n_rep = n_rep, 
+                regions = regions, 
+                seed = seed,
+                length_tolerance = length_tolerance
+            )
+            return(control_gr)
+        })
+        names(control_grl) <- names(query)
+        control_gr <- unlist(GRangesList(control_grl), use.names = FALSE)
+    } 
+
     return(control_gr)
 }

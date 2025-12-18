@@ -1,69 +1,23 @@
-# TFBS Enrichment Analysis
-# Description: This function analyzes the enrichment of transcription factor binding motifs in target genomic regions compared to control regions.
+# TFBS Enrichment Analysis for Single Region Set
 #
-# Parameter: 
-#   target_region: A GRanges object containing the target genomic regions for enrichment analysis.
-#   control_region: A GRanges object containing the control genomic regions for background comparison.
-#   regions: Size in bp to resize all regions around their center (default: 800)
-#   ref_genome: Reference genome version - "hg38" or "mm10" (default: "hg38")
-#   functional_region: A GRanges object or NULL. Optional functional regions (e.g., open chromatin, accessible regions) to restrict motif analysis. If provided, only motif sites overlapping these regions will be considered.
-#   out_path: Output path to save enrichment results table (default: "./TFBS_enrichment.tsv")
-#   style: A string specifying the desired seqlevelsStyle (e.g., "UCSC", "Ensembl"). If NULL, auto-detect from target_region; otherwise, enforce all objects to use the specified style. (default: NULL)
-#
-# Output: A data frame where each row corresponds to a motif with enrichment statistics (odds ratio, p-value, FDR) saved to output_path
+# Internal function that performs TFBS enrichment analysis for a single set of
+# target regions against control regions using Fisher's exact test.
 
-TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_path = "./TFBS_enrichment.tsv",  functional_region = NULL, ref_genome = "hg38", style = NULL) {
-  # Load packages
-  suppressPackageStartupMessages({
-    library(IRanges)
-    library(GenomicRanges)
-    library(data.table)
-    library(glue)
-  })
-
+TFBS_enrichment_single <- function(query_gr, control_gr, TFBS_library, regions = NULL, out_path = "./TFBS_enrichment.tsv") {
+  # Resize regions if specified
   if (!is.null(regions)) {
-    target_region <- resize(target_region, width = regions, fix='center')
-    control_region <- resize(control_region, width = regions, fix='center')
+    query_gr <- resize(query_gr, width = regions, fix = 'center')
+    control_gr <- resize(control_gr, width = regions, fix = 'center')
   }
 
-  # Load TFBS library
-  TFBS_library_file <- switch(ref_genome,
-    hg38 = "TFBS_lib_hg38.rds",
-    mm10 = "TFBS_lib_mm10.rds",
-    stop("Invalid ref_genome")
-  )
-  TFBS_library_file <- download_rds(TFBS_library_file)
-  TFBS_library <- readRDS(TFBS_library_file)
-  message(glue("Using reference genome {ref_genome} with {length(TFBS_library)} TFs"))
-
-  if (is.null(style)) {
-    style <- seqlevelsStyle(target_region)[1]
-  } else {
-    seqlevelsStyle(target_region) <- style
-  }
-  seqlevelsStyle(control_region) <- style
-  seqlevelsStyle(TFBS_library) <- style
-
-  # Filter by functional regions
-  if(!is.null(functional_region)){
-    seqlevelsStyle(functional_region) <- style
-    message(glue("Filtering motif site using {length(functional_region)} functional regions"))
-    TFBS_library <- endoapply(TFBS_library, subsetByOverlaps, functional_region)
-    TFBS_library <- TFBS_library[lengths(TFBS_library) > 0]
-    if (sum(lengths(TFBS_library)) == 0) {
-      warning("No motif sites overlap with the provided functional regions.")
-      return(NULL)
-    }
-  }
-
-  # Count overlaps
-  message("Counting overlaps and performing enrichment analysis...")
-  target_overlap <- countOverlaps(TFBS_library, target_region)
-  control_overlap <- countOverlaps(TFBS_library, control_region)
-  n_target <- length(target_region)
-  n_control <- length(control_region)
+  # Count overlaps between motif sites and regions
+  target_overlap <- countOverlaps(TFBS_library, query_gr)
+  control_overlap <- countOverlaps(TFBS_library, control_gr)
+  n_target <- length(query_gr)
+  n_control <- length(control_gr)
   tf_names <- names(TFBS_library)
 
+  # Build contingency table and perform Fisher's exact test
   test_result <- data.table(
     TF = tf_names,
     target_hit = target_overlap,
@@ -73,20 +27,19 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
   )
 
   test_result[, c("odds_ratio", "pvalue", "odds_ratio_se") := {
-    # Add pseudocount to avoid zeros
+    # Add pseudocount to avoid zeros in Fisher's test
     a <- target_hit + 1
     b <- control_hit + 1
     c <- target_off + 1
     d <- control_off + 1
     
-    # Pre-allocate vectors
     odds_ratios <- numeric(.N)
     pvalues <- numeric(.N)
     odds_ses <- numeric(.N)
     
     for (i in seq_len(.N)) {
       test_table <- matrix(c(a[i], b[i], c[i], d[i]), nrow = 2,
-                          dimnames = list(c("target", "control"), c("hit", "off")))
+                          dimnames = list(c("query", "control"), c("hit", "off")))
       
       odds_ses[i] <- sqrt(sum(1 / test_table))
       test_res <- fisher.test(test_table, alternative = "greater")
@@ -97,8 +50,11 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
     list(odds_ratios, pvalues, odds_ses)
   }]
 
+  # Multiple testing correction
   test_result[, FDR := p.adjust(pvalue, method = "BH")]
   setorder(test_result, pvalue)
+  
+  # Save results
   res <- as.data.frame(test_result)
   rownames(res) <- res$TF
   res <- res[, -1]
@@ -107,5 +63,136 @@ TFBS_enrichment <- function(target_region, control_region, regions = NULL, out_p
   n_significant <- sum(res$FDR < 0.05)
   message(glue("Results saved to {out_path}"))
   message(glue("Found {n_significant} significant motifs at FDR < 0.05"))
+  
   invisible(out_path)
+}
+
+
+# TFBS Enrichment Calculation
+#
+# This function analyzes the enrichment of transcription factor binding motifs
+# in target genomic regions compared to control regions using Fisher's exact test.
+# The analysis identifies motifs that are significantly over-represented in target
+# regions, accounting for background binding patterns observed in matched controls.
+#
+# Parameters:
+#   query: GRanges or GRangesList object of target genomic regions. If GRangesList,
+#          enrichment analysis is performed separately for each element and results
+#          are saved to individual TSV files.
+#   control: GRanges object containing control/background genomic regions.
+#            Same control set is used for all elements if query is GRangesList.
+#   regions: Width in base pairs to resize all regions around their center.
+#            If NULL, uses original region sizes. Default: NULL
+#   ref_genome: Reference genome version ("hg38" or "mm10"). Default: "hg38"
+#   functional_region: Optional GRanges object of functional regions (e.g., ATAC-seq
+#                      peaks, DNase hypersensitive sites). If provided, only motif
+#                      sites overlapping these regions are considered in the analysis.
+#                      Default: NULL (use all motif sites)
+#   out_dir: Output directory path for enrichment results. Directory is created if
+#            it doesn't exist. Default: "./"
+#   style: Chromosome naming style (e.g., "UCSC" or "NCBI"). If NULL, inferred
+#          from query object. Default: NULL
+#
+# Returns:
+#   Character vector of output file path(s), returned invisibly:
+#   - For GRanges input: Single path to "TFBS_enrichment.tsv"
+#   - For GRangesList input: Vector of paths to "TFBS_enrichment_<label>.tsv" files
+#   Each TSV file contains motif enrichment statistics (odds ratio, p-value, FDR)
+
+TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38", functional_region = NULL, out_dir = "./", style = NULL) {
+  # Load required packages
+  suppressPackageStartupMessages({
+    library(IRanges)
+    library(GenomicRanges)
+    library(data.table)
+    library(glue)
+  })
+
+  # Validate inputs
+  if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {
+    stop("Query must be a GRanges or GRangesList object")
+  }
+  if (!inherits(control, "GRanges")) {
+    stop("control must be a GRanges object")
+  }
+  if (!ref_genome %in% c("hg38", "mm10")) {
+    stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
+  }
+
+  if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+  }
+
+  # Load TFBS library
+  TFBS_library_file <- switch(ref_genome,
+    hg38 = "TFBS_lib_hg38.rds",
+    mm10 = "TFBS_lib_mm10.rds"
+  )
+  TFBS_library_file <- download_rds(TFBS_library_file)
+  TFBS_library <- readRDS(TFBS_library_file)
+  message(glue("Using reference genome {ref_genome} with {length(TFBS_library)} TFs"))
+
+  # Harmonize chromosome styles
+  if (is.null(style)) {
+    style <- seqlevelsStyle(query)[1]
+  } else {
+    seqlevelsStyle(query) <- style
+  }
+  seqlevelsStyle(control) <- style
+  seqlevelsStyle(TFBS_library) <- style
+
+  # Filter by functional regions if provided
+  if (!is.null(functional_region)) {
+    if (!inherits(functional_region, "GRanges")) {
+      stop("functional_region must be a GRanges object")
+    }
+    seqlevelsStyle(functional_region) <- style
+    message(glue("Filtering motif sites using {length(functional_region)} functional regions"))
+    TFBS_library <- endoapply(TFBS_library, subsetByOverlaps, functional_region)
+    TFBS_library <- TFBS_library[lengths(TFBS_library) > 0]
+    
+    if (sum(lengths(TFBS_library)) == 0) {
+      warning("No motif sites overlap with the provided functional regions.")
+      return(invisible(NULL))
+    }
+    message(glue("Retained {length(TFBS_library)} TFs after filtering"))
+  }
+
+  # Perform enrichment analysis
+  if (inherits(query, "GRanges")) {
+    # Single GRanges input
+    message("Counting overlaps and performing enrichment analysis...")
+    out_path <- file.path(out_dir, "TFBS_enrichment.tsv")
+    
+    result_path <- TFBS_enrichment_single(
+      query_gr = query,
+      control_gr = control,
+      TFBS_library = TFBS_library,
+      regions = regions,
+      out_path = out_path
+    )
+    
+    return(invisible(result_path))
+    
+  } else {
+    # GRangesList input - batch processing
+    message(glue("Processing {length(query)} target region sets..."))
+
+    result_paths <- sapply(names(query), function(label) {
+      message(glue("\nProcessing: {label} ({length(query[[label]])} regions)"))
+      
+      out_path <- file.path(out_dir, paste0("TFBS_enrichment_", label, ".tsv"))
+      
+      TFBS_enrichment_single(
+        query_gr = query[[label]],
+        control_gr = control,
+        TFBS_library = TFBS_library,
+        regions = regions,
+        out_path = out_path
+      )
+    })
+    
+    message(glue("\n{length(result_paths)} enrichment analyses completed"))
+    return(invisible(result_paths))
+  }
 }

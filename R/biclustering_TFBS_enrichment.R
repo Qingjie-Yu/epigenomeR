@@ -8,25 +8,30 @@
 #   row_cluster_file_path:
 #     Path to a tab-delimited file with clustered regions.
 #     Required columns: 'feature' (format: chr_start_end), 'label' (cluster assignment).
+#     Example: chr1_1000_2000 \t ClusterA
 #   out_dir:
-#     Output directory for all results (default: "./").
+#     Output directory for all results. Created if doesn't exist. Default: "./"
 #   ref_genome:
-#     Reference genome version (default: "hg38").
-#     Options: "hg38", "mm10".
+#     Reference genome version. Default: "hg38"
+#     Supported: "hg38", "mm10"
 #   ref_source:
-#     Gene annotation source used to define gene models and TSS coordinates.
-#     Supported options are:
-#       - "knownGene": Uses the UCSC knownGene annotation obtained via
-#         the Bioconductor package TxDb.Hsapiens.UCSC.hg38.knownGene.
-#       - "GENCODE": Uses GENCODE gene annotations (GENCODE v49).
+#     Gene annotation source for control region generation. Default: "knownGene"
+#     Options:
+#       - "knownGene": UCSC knownGene from TxDb packages
+#       - "GENCODE": GENCODE annotations (v49 for hg38, vM23 for mm10)
 #   control_rep:
-#     Multiplier for control region generation (default: 1).
-#     E.g., control_rep = 2 generates 2x as many control regions as input regions.
+#     Number of control regions per input region. Default: 1
+#     E.g., control_rep = 2 generates 2 matched controls per target region
 #   regions:
-#     Region size in base pairs for analysis (default: 800).
-#     All regions resized to this width centered on original midpoint.
+#     Width of regions in base pairs. Default: 800
+#     All regions are resized to this width, centered on original midpoint
 #   plot:
-#     Whether to generate heatmaps (default: TRUE). If FALSE, only performs enrichment analysis.
+#     Whether to generate enrichment heatmaps. Default: TRUE
+#   plot_n_top:
+#     Number of top enriched TFBSs to display in heatmap. Default: 20
+#     TFBSs ranked by minimum FDR across all clusters
+#   seed:
+#     Random seed for reproducible control region generation. Default: 42
 #
 # Output: 
 #   Control regions BED file: all_controls.bed
@@ -35,7 +40,7 @@
 #   log2 odds ratio matrix: odds_ratio_log2.csv (if plot=TRUE)
 #   FDR matrix: FDR.csv (if plot=TRUE)
 
-biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20) {
+biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20, seed = 42) {
     # Load packages
     suppressPackageStartupMessages({
         library(data.table)
@@ -44,6 +49,24 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
         library(circlize)
         library(rtracklayer)
     })
+
+    # Validate inputs
+    if (!file.exists(row_cluster_file_path)) {
+        stop("Input file does not exist: ", row_cluster_file_path)
+    }
+    if (!ref_genome %in% c("hg38", "mm10")) {
+        stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
+    }
+    if (!ref_source %in% c("knownGene", "GENCODE")) {
+        stop("Unsupported ref_source. Please use 'knownGene' or 'GENCODE'.")
+    }
+    if (control_rep < 1) {
+        stop("control_rep must be at least 1")
+    }
+
+    if (!dir.exists(out_dir)) {
+        dir.create(out_dir, recursive = TRUE)
+    }
 
     # Read row cluster file and convert to GRanges
     row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t")
@@ -58,35 +81,19 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
     cat("\n", strrep("=", 40), "\n", sep = "")
     cat("  Generating matched control regions")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    control_grl <- lapply(names(row_grl), function(label) {
-        cat("\n", "Processing cluster:", label, "with", length(row_grl[[label]]), "regions\n")
-        target_gr <- row_grl[[label]]
-        control_gr <- get_matched_control(target_gr = target_gr, ref_genome = ref_genome, style = style, n_rep = control_rep, regions = regions)
-        return(control_gr)
-    })
-    names(control_grl) <- names(row_grl)
-    control_gr <- unlist(GRangesList(control_grl), use.names = FALSE)
+    control_gr <- get_matched_control(query = row_grl, ref_genome = ref_genome, ref_source = ref_source, style = style, n_rep = control_rep, regions = regions)
     # Eliminating bias caused by overlap
     control_gr_reduced <- reduce(control_gr)
     control_gr <- resize(control_gr_reduced, width = regions, fix = "center")
-
-    if (!dir.exists(out_dir)) {
-        dir.create(out_dir, recursive = TRUE)
-    }
-    export(control_gr, file.path(out_dir, "all_controls.bed"))
+    export(control_gr, file.path(out_dir, "all_controls.bed"),format = "bed")
+    cat("Generated", length(control_gr), "unique control regions\n")
     cat("\n", "Control regions saved to:", file.path(out_dir, "all_controls.bed"), "\n")
 
     # TFBS enrichment for each cluster
     cat("\n", strrep("=", 40), "\n", sep = "")
     cat("  TFBS Enrichment Analysis")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    tsv_paths <- lapply(names(row_grl), function(label) {
-        cat("\n", "Processing TFBS enrichment for:", label, "\n")
-        out_path <- file.path(out_dir, paste0("TFBS_enrichment_cluster_", label, ".tsv"))
-        TFBS_enrichment(target_region = row_grl[[label]], control_region = control_gr,out_path = out_path, ref_genome = ref_genome, style = style)
-        out_path
-    })
-    tsv_paths <- unlist(tsv_paths)
+    tsv_paths <- TFBS_enrichment(query = row_grl, contro = control_gr, out_dir = out_dir, ref_genome = ref_genome, style = style)
 
     if (plot) {
         cat("\n", strrep("=", 40), "\n", sep = "")
