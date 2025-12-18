@@ -28,20 +28,21 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
     column_names_rot = 45,
     width = ncol(plot_data) * unit(cell_width, "mm"), 
     height = nrow(plot_data) * unit(cell_height, "mm"), 
-    heatmap_legend_param = list(
-      title = name,
-      title_position = "topcenter", 
-      color_bar = "continuous",
-      title_gp = gpar(fontsize = 8),
-      labels_gp = gpar(fontsize = 6),
-      legend_direction = "vertical",
-      legend_height = legend_height,
-      gap = unit(10, "mm")
-    )
+    show_heatmap_legend = FALSE
+  )
+
+  lgd <- Legend(
+    col_fun = col_fun,
+    title = name,
+    direction = "vertical",
+    title_position = "topcenter",
+    title_gp = gpar(fontsize = 8),
+    labels_gp = gpar(fontsize = 6),
+    legend_height = legend_height
   )
 
   pdf_width <- convertWidth(
-    unit(ncol(plot_data) * cell_width, "mm") + unit(60, "mm"), 
+    unit(ncol(plot_data) * cell_width, "mm") + unit(50, "mm"), 
     "inches", 
     valueOnly = TRUE
   )
@@ -52,7 +53,8 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   )
   
   pdf(out_path, width = pdf_width, height = pdf_height)
-  draw(h, heatmap_legend_side = "right", padding = unit(c(4, 4, 4, 25), "mm"))
+  draw(h, heatmap_legend_side = "right", padding = unit(c(4, 4, 4, 4), "mm"))
+  draw(lgd,  x = unit(1, "npc") - unit(30, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
   dev.off()  
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }
