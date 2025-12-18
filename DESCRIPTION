@@ -1,4 +1,4 @@
-Package: epigenomeR
+Package: multiEpiCore
 Type: Package
 Title: Comprehensive Toolkit for Epigenomic Data Analysis and Visualization
 Version: 0.1.0
