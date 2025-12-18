@@ -30,7 +30,7 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
     height = nrow(plot_data) * unit(cell_height, "mm"), 
     heatmap_legend_param = list(
       title = name,
-      title = "topcenter", 
+      title_position = "topcenter", 
       color_bar = "continuous",
       title_gp = gpar(fontsize = 8),
       labels_gp = gpar(fontsize = 6),
