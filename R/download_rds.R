@@ -1,19 +1,19 @@
 # Download and prepare reference RDS file from GitHub Release
-download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
+download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
   sha256_list <- c(
-    "ChromHMM_hg38.rds" = "7c94b0691e15b318a42cf6316ae9486fbf9ef1325e6baeb3cfa4fbe9fcbc975a",
-    "ChromHMM_mm10.rds" = "e44aa16d04cdcf5399a751695c030170b3870c970146d7696dea98afd59e01f5",
-    "ENCODE_cCRE_v4_hg38.rds" = "540ea690b6df3fc0116cdf98155d459164ccd3d2e5f68f0f134464b91a471c80",
-    "ENCODE_cCRE_v4_mm10.rds" = "ab0cfb2270776f7bdf7236887eed4d498e4c0d77037286ea7d27338af3b3de41",
-    "GENCODE_v49_hg38_processed.rds" = "856c8c96b050b8cf3b05c87ff3351b673f1a51c2768507b05b7137f79a749a2d",
-    "GENCODE_vM23_mm10_processed.rds" = "b1bc36df63f043fb1cda950d6af247cd79537b1f38d106eb4894846a429569e5",
-    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "e68e4ceb7780ceb8681663d32fe6887513697bd09dee162cd6d0ba70bf2239c7",
-    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "11354aed12cca825e05b0fcb3c755ae45922685992acdea859a7e472d98efc57",
-    "knownGene_hg38_processed.rds" = "7248c3d519f953f96d6c2ca16643ae02d2d9f922fe4f2bcefa1071cbff5b628f",
-    "knownGene_mm10_processed.rds" = "61fd67732af331069f7a8151870460b23339b2717a807fa691c4795c78f831a7",
-    "RepeatMasker_hg38_processed.rds" = "1ba1ae0c85cf871be32868ef4b21438ea630de44614101cf480a47e942765ee5",
-    "RepeatMasker_mm10_processed.rds" = "87830e07f1abf7fd69daae2f45e027b547f223946e357ea167c094ee40476c0a",
-    "TFBS_lib_hg38.rds" = "51d5191c9946fa2896e016cd2bd1e6b232021715d2676979b70b1d1c7ba68d0c"
+    "ChromHMM_hg38.rds" = "6c3fe5c004b5c58b3b6f210612f00db0807ec17508507677dfc8d5bbdfeb7ebb",
+    "ChromHMM_mm10.rds" = "fbd8c1ec7407667b590246584c3b6b80292c0db000546d5bea5aaa362e5d4199",
+    "ENCODE_cCRE_v4_hg38.rds" = "22175f9af598f9168737f7de0eb8e9bf32dc8fc23c365357f744c04e4e484fac",
+    "ENCODE_cCRE_v4_mm10.rds" = "8602da7c586d49aa43b5f4fc70ed81a1e6efba8a1c09517844207f4131823388",
+    "GENCODE_v49_hg38_processed.rds" = "f324adaec87b318b6ef0e7398c8609a4e9db7862f78f6c2fd4b15cb98f9e5274",
+    "GENCODE_vM23_mm10_processed.rds" = "83534c517d87b6489b5e595465b7ca5681a3e0e41acb55ce7b1e225cf6ce95af",
+    "GENCODE_v49_hg38_single_tx_by_evidence.rds" = "b1dc38f708bae8320c6ef3ddf2c680dd4b47f69457490402f8328b1017f82e2d",
+    "GENCODE_vM23_mm10_single_tx_by_evidence.rds" = "7c304118d43deb01a173e973c2d112e1be61f2350213f775d4603f3bab69aabd",
+    "knownGene_hg38_processed.rds" = "ac82fc657e866f5b34acd01e179559df47c96e58b6890efdf21bcb62554e4fd7",
+    "knownGene_mm10_processed.rds" = "c72f10ec5e21942df0a1af2e75b173d9f5a211b6dbf4dbd7208157acc5f25b58",
+    "RepeatMasker_hg38_processed.rds" = "3993d786df82edef2a13eb70b10399e2c0725bdedc598a07260b7cbb23da291a",
+    "RepeatMasker_mm10_processed.rds" = "8b9068c8d165f9a8651fb0f8e38684375f6e6b63224fc09ffab945f9e0f8e23d",
+    "TFBS_lib_hg38.rds" = "0f7f1d2407ad429a9617e11cf71654c7e2af4b2ca43a92ca8537f3cb99540d69"
   )
 
   # Validate rds_name
@@ -36,22 +36,45 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = FALSE) {
 
   needs_download <- force || !file.exists(rds_path)
   if (!needs_download) {
-    sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
+    sha256_local <- digest::digest(file = rds_path, algo = "sha256")
     if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
       message("Checksum mismatch for ", rds_name, ". Re-downloading...")
       needs_download <- TRUE
+      unlink(c(rds_path, zip_path), force = TRUE)
     }
   }
 
   if (needs_download) {
-    message("Downloading: ", zip_name)
-    utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
-    utils::unzip(zip_path, exdir = cache_dir)
-    sha256_local <- digest::digest(rds_path, algo = "sha256", serialize = FALSE)
-    if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
-      stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+    max_try <- 3
+    success <- FALSE 
+    for (i in seq_len(max_try)) {
+      tryCatch({
+        message("Downloading: ", zip_name, " (attempt ", i, "/", max_try, ")")
+        utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
+        utils::unzip(zip_path, exdir = cache_dir)
+        if (!file.exists(rds_path)) {
+          stop("Unzipped file not found: ", rds_path)
+        }
+        sha256_local <- digest::digest(file = rds_path, algo = "sha256")
+        if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
+          stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+        }
+        success <- TRUE
+        unlink(zip_path, force = TRUE) 
+        break
+      }, error = function(e) {
+        message("Attempt ", i, " failed: ", e$message)
+        unlink(c(rds_path, zip_path), force = TRUE)
+      })
+
+      if (!success && i < max_try) {
+        Sys.sleep(2^i)
+      }
+    }
+    if (!success) {
+      stop("Failed to download ", rds_name, " after ", max_try, " attempts.")
     }
   }
-  
+
   normalizePath(rds_path)
 }
