@@ -64,7 +64,7 @@ qc <- function(file_paths, filtered_percentile = 0.25, out_dir = "./", save = TR
     }
 
     write.table(all_df, file = file.path(out_dir, "all_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
-    write.table(filtered_df, file = file.path(out_dir, "filtered_read_count.csv"), sep = "\t", quote = FALSE, row.names = FALSE)
+    write.table(filtered_df, file = file.path(out_dir, "filtered_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
   }
 
   return (list(all_df = all_df, filtered_df = filtered_df, filtered_crf = filtered_df_vector, total_reads = total_reads))
@@ -357,7 +357,7 @@ qc_by_percentile <- function(file_paths, out_dir = "./", filtered_percentile = 0
   cat("The following files pass the quality control: ", "\n")
   cat(paste(filtered_paths, collapse = ", "), "\n")
 
-  # 
+  # Create matrix and plot
   if (plot) {
     result <- create_read_count_matrix(all_df = all_df, filtered_df = filtered_df, group_csv = group_csv, crf_col = crf_col, category_col = category_col, by = split_pair_by)
     plot_read_count_heatmap(mat = result$mat, category = result$category, out_dir = out_dir)
