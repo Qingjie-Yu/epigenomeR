@@ -1,0 +1,366 @@
+# Qualification Control
+#' Perform QC by counting reads/peaks from input BAM/BED files
+#'
+#' @param file_paths Character vector of BAM or BED file paths
+#' @param filtered_percentile Percentile threshold (0-1) for filtering (default: 0.25)
+#' @param out_dir Directory to save output CSVs if save == TRUE
+#' @param save Logical. If TRUE, save count tables as CSV
+#'
+#' @return List with:
+#'   - all_df: Data frame of all files and their read/peak counts
+#'   - filtered_df: Data frame after filtering by read count threshold
+#'   - filtered_crf: Vector of file names after filtering
+#'   - total_reads: Total read/peak count across all files
+qc <- function(file_paths, filtered_percentile = 0.25, out_dir = "./", save = TRUE) {
+  # load library
+  suppressPackageStartupMessages({
+    library(ChIPseeker)
+    library(ComplexHeatmap)
+    library(glue)
+    library(latex2exp)
+    library(Rsamtools)
+    library(GenomicAlignments)
+  })
+
+  file_exts <- tools::file_ext(file_paths)
+  if (all(file_exts == "bam")) {
+    ext <- "bam"
+  } else if (all(file_exts == "bed")) {
+    ext <- "bed"
+  } else {
+    stop("Error: file formats must be either 'bam' or 'bed'.")
+  }
+
+  df <- data.frame(file = character(), read_count = numeric(), stringsAsFactors = FALSE)
+
+  for (k in seq_along(file_paths)) {
+    file_path <- file_paths[k]
+    file_name <- tools::file_path_sans_ext(basename(file_path))
+    if (!(file.exists(file_path) && file.size(file_path) > 0)) {
+      warning(glue::glue("Skip invalid file: {file_path}"))
+      next
+    }
+
+    if (ext == "bam") {
+      temp <- readGAlignmentPairs(file_path)
+      count <- length(temp)
+    } else if (ext == "bed") {
+      peak <- ChIPseeker::readPeakFile(file_path, as = "GRanges")   # Use ChIPseeker to read peak files
+      count <- length(peak)
+    }
+    df <- rbind(df, data.frame(file = file_name, read_count = count, stringsAsFactors = FALSE)) # return: total df
+  }
+
+  threshold <- quantile(as.numeric(df$read_count), probs = filtered_percentile, type = 3)
+  filtered_df <- df[df$read_count >= threshold, ]
+  all_df <- df
+  filtered_df_vector <- filtered_df$file # return: filtered vector
+  total_reads <- sum(df$read_count) # return: total reads
+
+  # save
+  if (save == TRUE) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+
+    write.table(all_df, file = file.path(out_dir, "all_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+    write.table(filtered_df, file = file.path(out_dir, "filtered_read_count.csv"), sep = "\t", quote = FALSE, row.names = FALSE)
+  }
+
+  return (list(all_df = all_df, filtered_df = filtered_df, filtered_crf = filtered_df_vector, total_reads = total_reads))
+}
+
+
+#' Generate CRF-by-CRF Matrix from Pairwise Data
+#'
+#' Creates a symmetric matrix from CRF pairs, filling only the lower triangle.
+#' Pairs that don't pass QC (not in filtered_df) are set to NA.
+#'
+#' @param all_df Data frame with columns `file` and `read_count`
+#' @param filtered_df Data frame with column `file`
+#' @param group_csv Optional: file path to CSV with CRF grouping info
+#' @param crf_col Column name in group_csv for CRF identifiers (default: "crf")
+#' @param category_col Column name in group_csv for categories (default: "category")
+#' @param by Delimiter used in pair names (default: "-")
+#'
+#' @return List with:
+#'   - mat: Numeric matrix (lower triangle filled, upper = 0)
+#'   - category: Category labels for each CRF (NULL if no group_csv)
+create_read_count_matrix <- function(all_df, filtered_df, group_csv = NULL, crf_col = "crf", category_col = "category", by = "-") {
+  # Extract CRFs
+  if (!is.null(group_csv)) {
+    if (!file.exists(group_csv)) {
+      stop(glue::glue("File not found: {group_csv}"))
+    }
+    group_df <- read.csv(group_csv, stringsAsFactors = FALSE)
+    missing_cols <- setdiff(c(crf_col, category_col), colnames(group_df))
+    if (length(missing_cols) > 0) {
+      stop(glue::glue("Missing required column(s): {paste(missing_cols, collapse = ', ')}"))
+    }
+    
+    # Sort by category
+    group_df <- group_df[order(group_df[[category_col]]), ]
+    crfs <- group_df[[crf_col]]
+    category_vector <- group_df[[category_col]]
+    
+  } else {
+    # Extract unique CRFs from all pairs
+    pairs <- all_df$file
+    valid_pairs <- pairs[grepl(by, pairs, fixed = TRUE)]
+    
+    if (length(valid_pairs) == 0) {
+      stop(glue::glue("No valid pairs found with delimiter '{by}'"))
+    }
+    crfs <- unique(unlist(strsplit(valid_pairs, by, fixed = TRUE)))
+    crfs <- crfs[grepl("^[A-Za-z]", crfs)]  # keep only CRFs starting with letter
+    
+    if (length(crfs) == 0) {
+      stop("No valid CRF names extracted from pairs")
+    }
+    category_vector <- NULL
+  }
+  
+  # Create and fill matrix
+  n_crfs <- length(crfs)
+  mat <- matrix(0, nrow = n_crfs, ncol = n_crfs, 
+                dimnames = list(crfs, crfs))
+
+  pair_split <- strsplit(as.character(all_df$file), by, fixed = TRUE)
+  crf1_vec <- sapply(pair_split, `[`, 1)
+  crf2_vec <- sapply(pair_split, `[`, 2)
+  values <- all_df$read_count
+  
+
+  crf_to_idx <- setNames(seq_along(crfs), crfs)
+  valid_mask <- (crf1_vec %in% crfs) & (crf2_vec %in% crfs)
+  crf1_vec <- crf1_vec[valid_mask]
+  crf2_vec <- crf2_vec[valid_mask]
+  values <- values[valid_mask]
+  
+  idx1 <- crf_to_idx[crf1_vec]
+  idx2 <- crf_to_idx[crf2_vec]
+  
+  row_idx <- pmax(idx1, idx2)
+  col_idx <- pmin(idx1, idx2)
+  mat[cbind(row_idx, col_idx)] <- values
+  
+  # Mark non-QC-passed pairs as NA 
+  pass_pairs <- unique(as.character(filtered_df$file))
+  pass_set <- new.env(hash = TRUE, parent = emptyenv())
+  for (pair in pass_pairs) {
+    pass_set[[pair]] <- TRUE
+    pair_split <- strsplit(pair, by, fixed = TRUE)[[1]]
+    reversed <- paste(rev(pair_split), collapse = by)
+    pass_set[[reversed]] <- TRUE
+  }
+
+  lower_tri_idx <- which(lower.tri(mat, diag = FALSE), arr.ind = TRUE)
+  pair_names <- paste(crfs[lower_tri_idx[, 1]], 
+                      crfs[lower_tri_idx[, 2]], 
+                      sep = by)
+  is_fail <- !sapply(pair_names, function(p) exists(p, envir = pass_set))
+  mat[lower_tri_idx[is_fail, , drop = FALSE]] <- NA
+  
+  return(list(mat = mat, category = category_vector))
+}
+
+#' Plot CRF Pair Read Count Heatmap
+#'
+#' Generates a heatmap (PDF) showing log2-transformed read counts for CRF pairs.
+#' Only the lower triangle is filled; filtered pairs are shown in grey.
+#'
+#' @param mat Numeric matrix from create_read_count_matrix()
+#' @param category Category vector for each CRF (NULL if no grouping)
+#' @param out_dir Output directory for PDF (default: "./")
+#' @param filename Output PDF filename (default: "qc_heatmap.pdf")
+#' @param width PDF width in inches (default: 12)
+#' @param height PDF height in inches (default: 12)
+plot_read_count_heatmap <- function(mat, category = NULL, out_dir = "./", pdf_name = "qc_heatmap.pdf", width = 12,height = 12) {
+  
+  # Load libraries
+  suppressPackageStartupMessages({
+    library(ComplexHeatmap)
+    library(latex2exp)
+    library(circlize)
+    library(grid)
+  })
+  
+  # Validate input
+  if (!is.matrix(mat)) {
+    stop("mat must be a matrix")
+  }
+  if (nrow(mat) != ncol(mat)) {
+    stop("mat must be a square matrix")
+  }
+  
+  # Check and create output directory
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+  output_pdf <- file.path(out_dir, pdf_name)
+  
+  # Log2 transformation
+  log_mat <- log2(mat + 1)
+  log_min <- min(log_mat, na.rm = TRUE)
+  log_max <- max(log_mat, na.rm = TRUE)
+  log_avg <- (log_min + log_max) / 2
+  
+  # Create NA legend
+  na_legend <- Legend(
+    labels = "Filtered Pairs", 
+    legend_gp = gpar(fill = "grey90"), 
+    title = ""
+  )
+  
+  ht_opt$ROW_ANNO_PADDING <- unit(0.4, "cm")
+  ht_opt$COLUMN_ANNO_PADDING <- unit(0.4, "cm")
+  
+  
+  if (!is.null(category)) {
+    # With category grouping
+    unique_categories <- unique(category)
+    n_categories <- length(unique_categories)
+    
+    # 12-color palette
+    palette_12 <- c(
+      "#8ECFC9", "#FFBE7A", "#FA7F6F", "#82B0D2", 
+      "#BEB8DC", "#E7DAD2", "#999999", "#BC3C29",
+      "#0072B5", "#E18727", "#20854E", "#7876B1"
+    )
+    group_colors <- rep_len(palette_12, n_categories)
+    
+    # Create annotations
+    row_annotation <- rowAnnotation(
+      category = anno_block(
+        gp = gpar(fill = group_colors),
+        labels = unique_categories,
+        labels_gp = gpar(col = "white", fontsize = 11)
+      )
+    )
+    
+    col_annotation <- HeatmapAnnotation(
+      category = anno_block(
+        gp = gpar(fill = group_colors),
+        labels = unique_categories,
+        labels_gp = gpar(col = "white", fontsize = 11)
+      )
+    )
+    
+    # Create heatmap with grouping
+    pdf(output_pdf, width = width, height = height)
+    ht <- Heatmap(
+      log_mat, 
+      rect_gp = gpar(type = "none"), 
+      na_col = "grey90",
+      cluster_rows = FALSE, 
+      cluster_columns = FALSE,
+      # Only draw lower triangle
+      cell_fun = function(j, i, x, y, w, h, fill) {
+        if (i >= j) {
+          grid.rect(x, y, w, h, gp = gpar(fill = fill, col = fill))
+        }
+      },
+      # Labels
+      row_labels = TeX(rownames(mat)),
+      column_labels = TeX(colnames(mat)),
+      row_names_side = "left",
+      column_title = "CRF Pair Read Count",
+      # Color scheme
+      col = colorRamp2(
+        c(log_min, log_avg, log_max), 
+        c("blue", "white", "red")
+      ),
+      # Legend
+      heatmap_legend_param = list(
+        title = "log2(read count + 1)", 
+        color_bar = "continuous",
+        title_gp = gpar(fontsize = 15)
+      ),
+      # Splits by category
+      column_split = category,
+      row_split = category,
+      row_title = rep("", n_categories),
+      
+      # Annotations
+      left_annotation = row_annotation,
+      bottom_annotation = col_annotation
+    )
+    
+    draw(ht, annotation_legend_list = list(na_legend), merge_legend = TRUE)
+    dev.off()
+    
+  } else {
+    # Without category grouping
+    pdf(output_pdf, width = width, height = height)
+    ht <- Heatmap(
+      log_mat, 
+      rect_gp = gpar(type = "none"), 
+      na_col = "grey90",
+      cluster_rows = FALSE, 
+      cluster_columns = FALSE,
+      # Only draw lower triangle
+      cell_fun = function(j, i, x, y, w, h, fill) {
+        if (i >= j) {
+          grid.rect(x, y, w, h, gp = gpar(fill = fill, col = fill))
+        }
+      },
+      # Labels
+      row_labels = TeX(rownames(mat)),
+      column_labels = TeX(colnames(mat)),
+      row_names_side = "left",
+      column_title = "CRF Pair Read Count", 
+      # Color scheme
+      col = colorRamp2(
+        c(log_min, log_avg, log_max), 
+        c("blue", "white", "red")
+      ),
+      # Legend
+      heatmap_legend_param = list(
+        title = "log2(read count + 1)",
+        color_bar = "continuous",
+        title_gp = gpar(fontsize = 15)
+      )
+    )
+    
+    draw(ht, annotation_legend_list = list(na_legend), merge_legend = TRUE)
+    dev.off()
+  }
+  
+  cat("Heatmap saved to:", output_pdf, "\n")
+}
+
+
+#' Perform QC on BAM/BED files and generate heatmap
+#' @param file_paths Character vector of BAM or BED file paths
+#' @param out_dir Output directory (default: "./")
+#' @param filtered_percentile Percentile threshold for filtering (default: 0.25)
+#' @param plot Logical; if TRUE, generate heatmap (default: TRUE)
+#' @param split_pair_by Delimiter for splitting CRF pairs (default: "-")
+#' @param group_csv Optional: CSV file path with CRF grouping info
+#' @param crf_col Column name for CRF identifiers (default: "crf")
+#' @param category_col Column name for categories (default: "category")
+# Output: CSVs :
+#            * all_read_count.tsv
+#            * filtered_read_count.tsv
+#         Heatmap in PDF: AAA_test_qc_heatmap.pdf in `out_dir`
+qc_by_percentile <- function(file_paths, out_dir = "./", filtered_percentile = 0.25, plot = TRUE, split_pair_by = "-", group_csv = NULL, crf_col = "crf", category_col = "category") {
+  if (is.null(out_dir)) {
+    out_dir <- dirname(file_paths[1])
+  }
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+  result_qc <- qc(file_paths = file_paths, filtered_percentile = filtered_percentile, out_dir = out_dir, save = TRUE)
+  all_df <- result_qc$all_df
+  filtered_df <- result_qc$filtered_df
+  filtered_paths <- result_qc$filtered_crf
+  total_reads <- result_qc$total_reads
+  cat("The following files pass the quality control: ", "\n")
+  cat(paste(filtered_paths, collapse = ", "), "\n")
+
+  # 
+  if (plot) {
+    result <- create_read_count_matrix(all_df = all_df, filtered_df = filtered_df, group_csv = group_csv, crf_col = crf_col, category_col = category_col, by = split_pair_by)
+    plot_read_count_heatmap(mat = result$mat, category = result$category, out_dir = out_dir)
+  }
+  invisible(filtered_paths)
+}
