@@ -1,8 +1,10 @@
 exportPattern("^[[:alpha:]]+")
 
+import(BiocParallel)
 import(BiocGenerics)
 import(GenomicRanges)
 import(S4Vectors)
+
 importFrom(
   data.table,
   fread,

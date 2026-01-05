@@ -73,7 +73,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
 
     # qc
     if (do_qc == TRUE) {
-        result <- qc(file_paths = bam_path, filtered_percentile = qc_percent, save = FALSE)
+        result <- qc(file_path = bam_path, filtered_percentile = qc_percent, save = FALSE)
         vector_crf <- result$filtered_crf
         bamFiles <- bam_path[tools::file_path_sans_ext(basename(bam_path)) %in% vector_crf]
     } else {

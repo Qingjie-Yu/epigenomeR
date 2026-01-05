@@ -1,76 +1,3 @@
-# Qualification Control
-#' Perform QC by counting reads/peaks from input BAM/BED files
-#'
-#' @param file_paths Character vector of BAM or BED file paths
-#' @param filtered_percentile Percentile threshold (0-1) for filtering (default: 0.25)
-#' @param out_dir Directory to save output CSVs if save == TRUE
-#' @param save Logical. If TRUE, save count tables as CSV
-#'
-#' @return List with:
-#'   - all_df: Data frame of all files and their read/peak counts
-#'   - filtered_df: Data frame after filtering by read count threshold
-#'   - filtered_crf: Vector of file names after filtering
-#'   - total_reads: Total read/peak count across all files
-qc <- function(file_paths, filtered_percentile = 0.25, out_dir = "./", save = TRUE) {
-  # load library
-  suppressPackageStartupMessages({
-    library(ChIPseeker)
-    library(ComplexHeatmap)
-    library(glue)
-    library(latex2exp)
-    library(Rsamtools)
-    library(GenomicAlignments)
-  })
-
-  file_exts <- tools::file_ext(file_paths)
-  if (all(file_exts == "bam")) {
-    ext <- "bam"
-  } else if (all(file_exts == "bed")) {
-    ext <- "bed"
-  } else {
-    stop("Error: file formats must be either 'bam' or 'bed'.")
-  }
-
-  df <- data.frame(file = character(), read_count = numeric(), stringsAsFactors = FALSE)
-
-  for (k in seq_along(file_paths)) {
-    file_path <- file_paths[k]
-    file_name <- tools::file_path_sans_ext(basename(file_path))
-    if (!(file.exists(file_path) && file.size(file_path) > 0)) {
-      warning(glue::glue("Skip invalid file: {file_path}"))
-      next
-    }
-
-    if (ext == "bam") {
-      temp <- readGAlignmentPairs(file_path)
-      count <- length(temp)
-    } else if (ext == "bed") {
-      peak <- ChIPseeker::readPeakFile(file_path, as = "GRanges")   # Use ChIPseeker to read peak files
-      count <- length(peak)
-    }
-    df <- rbind(df, data.frame(file = file_name, read_count = count, stringsAsFactors = FALSE)) # return: total df
-  }
-
-  threshold <- quantile(as.numeric(df$read_count), probs = filtered_percentile, type = 3)
-  filtered_df <- df[df$read_count >= threshold, ]
-  all_df <- df
-  filtered_df_vector <- filtered_df$file # return: filtered vector
-  total_reads <- sum(df$read_count) # return: total reads
-
-  # save
-  if (save == TRUE) {
-    if (!dir.exists(out_dir)) {
-      dir.create(out_dir, recursive = TRUE)
-    }
-
-    write.table(all_df, file = file.path(out_dir, "all_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
-    write.table(filtered_df, file = file.path(out_dir, "filtered_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
-  }
-
-  return (list(all_df = all_df, filtered_df = filtered_df, filtered_crf = filtered_df_vector, total_reads = total_reads))
-}
-
-
 #' Generate CRF-by-CRF Matrix from Pairwise Data
 #'
 #' Creates a symmetric matrix from CRF pairs, filling only the lower triangle.
@@ -105,7 +32,7 @@ create_read_count_matrix <- function(all_df, filtered_df, group_csv = NULL, crf_
     
   } else {
     # Extract unique CRFs from all pairs
-    pairs <- all_df$file
+    pairs <- all_df$pair
     valid_pairs <- pairs[grepl(by, pairs, fixed = TRUE)]
     
     if (length(valid_pairs) == 0) {
@@ -125,12 +52,11 @@ create_read_count_matrix <- function(all_df, filtered_df, group_csv = NULL, crf_
   mat <- matrix(0, nrow = n_crfs, ncol = n_crfs, 
                 dimnames = list(crfs, crfs))
 
-  pair_split <- strsplit(as.character(all_df$file), by, fixed = TRUE)
+  pair_split <- strsplit(as.character(all_df$pair), by, fixed = TRUE)
   crf1_vec <- sapply(pair_split, `[`, 1)
   crf2_vec <- sapply(pair_split, `[`, 2)
   values <- all_df$read_count
   
-
   crf_to_idx <- setNames(seq_along(crfs), crfs)
   valid_mask <- (crf1_vec %in% crfs) & (crf2_vec %in% crfs)
   crf1_vec <- crf1_vec[valid_mask]
@@ -145,7 +71,7 @@ create_read_count_matrix <- function(all_df, filtered_df, group_csv = NULL, crf_
   mat[cbind(row_idx, col_idx)] <- values
   
   # Mark non-QC-passed pairs as NA 
-  pass_pairs <- unique(as.character(filtered_df$file))
+  pass_pairs <- unique(as.character(filtered_df$pair))
   pass_set <- new.env(hash = TRUE, parent = emptyenv())
   for (pair in pass_pairs) {
     pass_set[[pair]] <- TRUE
@@ -331,7 +257,7 @@ plot_read_count_heatmap <- function(mat, category = NULL, out_dir = "./", pdf_na
 
 
 #' Perform QC on BAM/BED files and generate heatmap
-#' @param file_paths Character vector of BAM or BED file paths
+#' @param file_path Character vector of BAM or BED file paths
 #' @param out_dir Output directory (default: "./")
 #' @param filtered_percentile Percentile threshold for filtering (default: 0.25)
 #' @param plot Logical; if TRUE, generate heatmap (default: TRUE)
@@ -343,13 +269,13 @@ plot_read_count_heatmap <- function(mat, category = NULL, out_dir = "./", pdf_na
 #            * all_read_count.tsv
 #            * filtered_read_count.tsv
 #         Heatmap in PDF: AAA_test_qc_heatmap.pdf in `out_dir`
-qc_by_percentile <- function(file_paths, out_dir = "./", filtered_percentile = 0.25, plot = TRUE, split_pair_by = "-", group_csv = NULL, crf_col = "crf", category_col = "category") {
+qc_by_percentile <- function(file_path, out_dir = "./", filtered_percentile = 0.25, plot = TRUE, split_pair_by = "-", group_csv = NULL, crf_col = "crf", category_col = "category") {
   if (is.null(out_dir)) {
-    out_dir <- dirname(file_paths[1])
+    out_dir <- dirname(file_path[1])
   }
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-  result_qc <- qc(file_paths = file_paths, filtered_percentile = filtered_percentile, out_dir = out_dir, save = TRUE)
+  result_qc <- qc(file_path = file_path, filtered_percentile = filtered_percentile, out_dir = out_dir, save = TRUE)
   all_df <- result_qc$all_df
   filtered_df <- result_qc$filtered_df
   filtered_paths <- result_qc$filtered_crf
