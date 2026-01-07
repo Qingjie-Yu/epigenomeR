@@ -2,17 +2,19 @@
 #' Perform QC by counting reads/peaks from input BAM/BED files
 #'
 #' @param file_path Character vector of BAM or BED file paths
+#' @param out_dir Directory to save output TSV files if save == TRUE
 #' @param filtered_percentile Percentile threshold (0-1) for filtering (default: 0.25)
-#' @param out_dir Directory to save output CSVs if save == TRUE
-#' @param save Logical. If TRUE, save count tables as CSV
+#' @param save Logical. If TRUE, save count tables as TSV
 #'
 #' @return List with:
 #'   - all_df: Data frame of all files and their read/peak counts
 #'   - filtered_df: Data frame after filtering by read count threshold
 #'   - filtered_crf: Vector of file names after filtering
 #'   - total_reads: Total read/peak count across all files
-qc <- function(file_path, filtered_percentile = 0.25, out_dir = "./", save = TRUE) {
-  # load library
+#'   
+#' @export
+qc <- function(file_path, out_dir = "./", filtered_percentile = 0.25, save = TRUE) {
+  # Load libraries
   suppressPackageStartupMessages({
     library(ChIPseeker)
     library(ComplexHeatmap)
@@ -20,52 +22,100 @@ qc <- function(file_path, filtered_percentile = 0.25, out_dir = "./", save = TRU
     library(latex2exp)
     library(Rsamtools)
     library(GenomicAlignments)
+    library(BiocParallel)
   })
 
+  # Set up parallel processing
+  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
+  if (n_cores > 1) {
+    if (.Platform$OS.type == "unix") {
+      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
+    } else {
+      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
+    }
+  } else {
+    BPPARAM <- BiocParallel::SerialParam()
+  }
+
+  # Validate file formats
   file_exts <- tools::file_ext(file_path)
   if (all(file_exts == "bam")) {
     ext <- "bam"
   } else if (all(file_exts == "bed")) {
     ext <- "bed"
   } else {
-    stop("Error: file formats must be either 'bam' or 'bed'.")
+    stop("Error: All files must be either BAM or BED format. Mixed formats are not supported.")
   }
 
-  df <- data.frame(pair = character(), read_count = numeric(), stringsAsFactors = FALSE)
-
-  for (k in seq_along(file_path)) {
-    file_path <- file_path[k]
-    file_name <- tools::file_path_sans_ext(basename(file_path))
-    if (!(file.exists(file_path) && file.size(file_path) > 0)) {
-      warning(glue::glue("Skip invalid file: {file_path}"))
-      next
+  # Parallel processing of files
+  counts <- BiocParallel::bplapply(file_path, function(path) {
+    result <- data.frame()
+    pair <- tools::file_path_sans_ext(basename(path))
+    
+    # Check file validity
+    if (!(file.exists(path) && file.size(path) > 0)) {
+      attr(result, "warning") <- sprintf("Skip invalid file: %s", path)
+      return(result)
     }
 
-    if (ext == "bam") {
-      temp <- readGAlignmentPairs(file_path)
-      count <- length(temp)
-    } else if (ext == "bed") {
-      peak <- ChIPseeker::readPeakFile(file_path, as = "GRanges") # Use ChIPseeker to read peak files
-      count <- length(peak)
+    # Count reads/peaks with error handling
+    tryCatch({
+      if (ext == "bam") {
+        temp <- GenomicAlignments::readGAlignmentPairs(path)
+        read_count <- length(temp)
+      } else {  # ext == "bed"
+        peak <- ChIPseeker::readPeakFile(path, as = "GRanges")
+        read_count <- length(peak)
+      }
+      
+      return(data.frame(pair = pair, read_count = read_count, stringsAsFactors = FALSE))
+      
+    }, error = function(e) {
+      attr(result, "warning") <- sprintf("Error processing %s: %s", path, e$message)
+      return(result)
+    })
+  }, BPPARAM = BPPARAM)
+
+  # Extract and display warnings
+  warnings_msgs <- sapply(counts, function(x) attr(x, "warning"))
+  warnings_msgs <- warnings_msgs[!sapply(warnings_msgs, is.null)]
+  if (length(warnings_msgs) > 0) {
+    for (msg in warnings_msgs) {
+      warning(msg, call. = FALSE)
     }
-    df <- rbind(df, data.frame(pair = file_name, read_count = count, stringsAsFactors = FALSE)) # return: total df
   }
 
-  threshold <- quantile(as.numeric(df$read_count), probs = filtered_percentile, type = 3)
+  # Filter out empty data.frames (invalid files)
+  counts <- counts[sapply(counts, nrow) > 0]
+  if (length(counts) == 0) {
+    stop("Error: No valid files were successfully processed")
+  }
+  df <- do.call(rbind, counts)
+  
+  # Calculate threshold and filter
+  threshold <- quantile(df$read_count, probs = filtered_percentile, type = 3)
   filtered_df <- df[df$read_count >= threshold, ]
-  all_df <- df
-  filtered_df_vector <- filtered_df$pair # return: filtered vector
-  total_reads <- sum(df$read_count) # return: total reads
+  filtered_df_vector <- filtered_df$pair
+  total_reads <- sum(df$read_count)
 
-  # save
-  if (save == TRUE) {
+  # Save results
+  if (save) {
     if (!dir.exists(out_dir)) {
       dir.create(out_dir, recursive = TRUE)
     }
 
-    write.table(all_df, file = file.path(out_dir, "all_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
-    write.table(filtered_df, file = file.path(out_dir, "filtered_read_count.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+    write.table(df, 
+                file = file.path(out_dir, "all_read_count.tsv"), 
+                sep = "\t", quote = FALSE, row.names = FALSE)
+    write.table(filtered_df, 
+                file = file.path(out_dir, "filtered_read_count.tsv"), 
+                sep = "\t", quote = FALSE, row.names = FALSE)
   }
 
-  return(list(all_df = all_df, filtered_df = filtered_df, filtered_crf = filtered_df_vector, total_reads = total_reads))
+  return(list(
+    all_df = df, 
+    filtered_df = filtered_df, 
+    filtered_crf = filtered_df_vector, 
+    total_reads = total_reads
+  ))
 }
