@@ -19,7 +19,7 @@ summary_sig_num_log10_barplot_single_case <- function(result_file_dir, sig_resul
 
   dir.create(sig_result_dir, recursive = TRUE, showWarnings = FALSE)
 
-  result_table <- read.table(result_file_path, header=TRUE, sep="\t")
+  result_table <- read.table(result_file_path, header = TRUE, sep = "\t")
 
   # ---- SAVE ORIGINAL COUNTS BEFORE LOG TRANSFORM ----
   result_table$orig_up <- result_table$up
@@ -47,20 +47,28 @@ summary_sig_num_log10_barplot_single_case <- function(result_file_dir, sig_resul
   y_top <- max(df_long$count_plot)
   y_bot <- min(df_long$count_plot)
 
-  result_figure <- ggplot(df_long,
-                          aes(x = factor(column_cluster, levels = unique(column_cluster)),
-                              y = count_plot,
-                              fill = status)) +
+  result_figure <- ggplot(
+    df_long,
+    aes(
+      x = factor(column_cluster, levels = unique(column_cluster)),
+      y = count_plot,
+      fill = status
+    )
+  ) +
     # bars
     geom_col(width = 0.7) +
 
     # text labels: use ORIGINAL counts
-    geom_text(data = filter(df_long, status == "up"),
-              aes(label = original_count),
-              vjust = -0.3, size = 4) +
-    geom_text(data = filter(df_long, status == "down"),
-              aes(label = original_count),
-              vjust =  1.3, size = 4) +
+    geom_text(
+      data = filter(df_long, status == "up"),
+      aes(label = original_count),
+      vjust = -0.3, size = 4
+    ) +
+    geom_text(
+      data = filter(df_long, status == "down"),
+      aes(label = original_count),
+      vjust = 1.3, size = 4
+    ) +
 
     # manual colors
     scale_fill_manual(values = c(up = "firebrick", down = "steelblue")) +
@@ -71,12 +79,16 @@ summary_sig_num_log10_barplot_single_case <- function(result_file_dir, sig_resul
     # log10 scale on y-axis with manual breaks for pseudo_log
     scale_y_continuous(
       trans = scales::pseudo_log_trans(base = 10),
-      breaks = c(-log10(1000), -log10(100), -log10(10),
-                 log10(10), log10(100), log10(1000)),
+      breaks = c(
+        -log10(1000), -log10(100), -log10(10),
+        log10(10), log10(100), log10(1000)
+      ),
       labels = c("1000", "100", "10", "10", "100", "1000"),
-      sec.axis = sec_axis(transform = ~.,
-                          breaks = c(-1.5, 1.5),
-                          labels = c("Down Regulated", "Up Regulated"))
+      sec.axis = sec_axis(
+        transform = ~.,
+        breaks = c(-1.5, 1.5),
+        labels = c("Down Regulated", "Up Regulated")
+      )
     ) +
 
     # no legend, no y axis title

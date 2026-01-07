@@ -7,13 +7,13 @@
 #   - "sqrt": Square root transformation
 #   - "minmaxnorm": Min-max normalization to [0,1] range
 #   - "qnorm": Quantile normalization across samples
-# 
+#
 # Parameters:
 #   cm_path: Path to input count matrix (.feather file)
 #   transformations: Character vector of transformation steps to apply in order. Default: c("remove0", "libnorm", "log2p1", "qnorm")
 #   out_dir: Directory path for saving output files
 #   save_each_step: Logical. If TRUE, save intermediate results after each transformation. Default: FALSE
-# 
+#
 # Output: Saves transformed count matrix as .feather file with "_transformed" suffix.  Returns the full output file path (character).
 
 apply_transformations <- function(cm_path, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), out_dir, save_each_step = FALSE) {
@@ -35,7 +35,7 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
   } else {
     warning(pos_colname, " column not found in the feather file. Automatically set the first column as the chromosome coordinate information.")
     first_col <- colnames(df)[1]
-    rownames(df) <- df[[first_col]] 
+    rownames(df) <- df[[first_col]]
     df[[first_col]] <- NULL
   }
 
@@ -57,7 +57,6 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
       if (nrow(df) == 0) {
         stop("Error: all rows have zero counts; nothing left after filtering.")
       }
-
     } else if (t == "libnorm") {
       message("\n=== Perform Library Normalization ===")
       original_cols <- colnames(df)
@@ -70,12 +69,10 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
       }
       df <- sweep(df, 2, colSums(df), FUN = "/") * 1e6
       message("Library normalization completed")
-
     } else if (t == "log2p1") {
       message("\n=== Apply log2(x+1) Transformation ===")
       df <- log2(df + 1)
       message("log2(x+1) transformation completed")
-
     } else if (t == "minmaxnorm") {
       message("\n=== Apply Min-Max Normalization ===")
       col_mins <- apply(df, 2, min)
@@ -86,16 +83,14 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
       if (any(is_constant)) {
         df[, is_constant] <- 0
         message(sum(is_constant), " constant column(s) normalized to 0")
-      } 
+      }
       if (any(!is_constant)) {
         df[, !is_constant] <- sweep(df[, !is_constant, drop = FALSE], 2, col_ranges[!is_constant], FUN = "/")
       }
       message("Min-Max normalization completed")
-
     } else if (t == "sqrt") {
       message("\n=== Square Root ===")
       df <- sqrt(df)
-
     } else if (t == "qnorm") {
       message("\n=== Quantile Normalization ===")
       old_rownames <- rownames(df)
@@ -105,7 +100,6 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
       rownames(df) <- old_rownames
       colnames(df) <- old_colnames
       message("Quantile normalization completed")
-
     } else {
       warning("Unrecognized transformation: '", t, "'. Skipping!")
       next
@@ -119,7 +113,7 @@ apply_transformations <- function(cm_path, transformations = c("remove0", "libno
       write_feather(df_to_save, save_path)
     }
   }
-  
+
   df_to_save <- rownames_to_column(as.data.frame(df), var = pos_colname)
   output_name <- paste0(input_prefix, "_transformed.feather")
   output_path <- file.path(out_dir, output_name)

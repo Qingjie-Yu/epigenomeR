@@ -1,5 +1,5 @@
 # Filter highly variable regions based on mean-variance analysis
-# Description: Filters genomic regions to identify the most informative features 
+# Description: Filters genomic regions to identify the most informative features
 #              based on log2-transformed mean expression and hypervariance values
 # Parameters:
 #   transformed_cm_path: Path to transformed count matrix file (.feather format with "pos" column)
@@ -13,7 +13,7 @@
 #   - Filtered count matrix (.feather): Contains only selected informative regions
 #   - Optional diagnostic plots (.png): Shows selection process across expression levels
 
-filter_hvr <- function(transformed_cm_path, mav_stats_path,  out_dir = "./", n_bins = 100, keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE) {
+filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bins = 100, keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE) {
   # Load libraries
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -23,42 +23,49 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path,  out_dir = "./", n_b
   })
 
   # Read mean-variance statistics (only needed columns)
-  mav_stats <- arrow::read_feather(mav_stats_path, 
-                                    col_select = c("pos", "log2_mean", "log2_var", "hypervar"))
-  
+  mav_stats <- arrow::read_feather(mav_stats_path,
+    col_select = c("pos", "log2_mean", "log2_var", "hypervar")
+  )
+
   # Calculate mean expression threshold
   mean_threshold <- quantile(mav_stats$log2_mean, log2mean_quantile_thres)
-  message("Log2(mean) threshold (", log2mean_quantile_thres * 100, 
-          "th percentile): ", round(mean_threshold, 3))
+  message(
+    "Log2(mean) threshold (", log2mean_quantile_thres * 100,
+    "th percentile): ", round(mean_threshold, 3)
+  )
 
   # Pre-filter: only keep overdispersed regions (hypervar > 1)
   mav_filtered <- mav_stats %>% filter(hypervar > 1)
-  
+
   # Stratified sampling: bin regions by log2(mean)
   mav_filtered$bin <- cut(mav_filtered$log2_mean, breaks = n_bins, labels = FALSE, include.lowest = TRUE)
-  
+
   # Calculate regions to keep per bin
   n_per_bin <- floor(nrow(mav_stats) * keep_percent / n_bins)
-  message("Selecting ~", n_per_bin, " regions per bin (", 
-          keep_percent * 100, "% of total)")
-  
+  message(
+    "Selecting ~", n_per_bin, " regions per bin (",
+    keep_percent * 100, "% of total)"
+  )
+
   # Select top hypervariant regions from each bin
-  selected_regions <- mav_filtered %>% 
-    group_by(bin) %>% 
-    slice_max(order_by = hypervar, n = n_per_bin, with_ties = FALSE) %>% 
-    ungroup() %>% 
+  selected_regions <- mav_filtered %>%
+    group_by(bin) %>%
+    slice_max(order_by = hypervar, n = n_per_bin, with_ties = FALSE) %>%
+    ungroup() %>%
     select(-bin)
-  
+
   # Final filter: keep only highly expressed regions
-  final_regions <- selected_regions %>% 
+  final_regions <- selected_regions %>%
     filter(log2_mean >= mean_threshold)
-  
-  message("Final selected regions: ", nrow(final_regions), " (", 
-          round(nrow(final_regions) / nrow(mav_stats) * 100, 2), "% of total)")
+
+  message(
+    "Final selected regions: ", nrow(final_regions), " (",
+    round(nrow(final_regions) / nrow(mav_stats) * 100, 2), "% of total)"
+  )
 
   # Load count matrix and extract selected regions
   count_matrix <- arrow::read_feather(transformed_cm_path)
-  selected_matrix <- count_matrix %>% 
+  selected_matrix <- count_matrix %>%
     filter(pos %in% final_regions$pos)
 
   # Save filtered matrix
@@ -74,30 +81,38 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path,  out_dir = "./", n_b
     # Plot 1: Mean-variance relationship
     p1 <- ggplot(mav_stats, aes(x = log2_mean, y = log2_var)) +
       geom_point(alpha = 0.3, color = "#D4E9D9", size = 1) +
-      geom_point(data = final_regions, 
-                 aes(x = log2_mean, y = log2_var),
-                 size = 2, color = "#F6E0D3", alpha = 0.8) +
+      geom_point(
+        data = final_regions,
+        aes(x = log2_mean, y = log2_var),
+        size = 2, color = "#F6E0D3", alpha = 0.8
+      ) +
       labs(x = "Log2(mean)", y = "Log2(variance)") +
       theme_minimal() +
       theme(plot.title = element_text(hjust = 0.5))
 
     # Plot 2: Hypervariance selection process
     p2 <- ggplot() +
-      geom_point(data = mav_stats, 
-                 aes(x = log2_mean, y = hypervar),
-                 alpha = 0.3, color = "blue", size = 0.5) +
-      geom_point(data = selected_regions, 
-                 aes(x = log2_mean, y = hypervar),
-                 alpha = 0.3, color = "red", size = 1) +
-      geom_point(data = final_regions, 
-                 aes(x = log2_mean, y = hypervar),
-                 size = 3, color = "green", alpha = 0.8) +
+      geom_point(
+        data = mav_stats,
+        aes(x = log2_mean, y = hypervar),
+        alpha = 0.3, color = "blue", size = 0.5
+      ) +
+      geom_point(
+        data = selected_regions,
+        aes(x = log2_mean, y = hypervar),
+        alpha = 0.3, color = "red", size = 1
+      ) +
+      geom_point(
+        data = final_regions,
+        aes(x = log2_mean, y = hypervar),
+        size = 3, color = "green", alpha = 0.8
+      ) +
       labs(x = "Log2(mean)", y = "Hypervariance") +
       theme_minimal() +
       theme(plot.title = element_text(hjust = 0.5))
 
     # Combine and save
-    combined_plot <- plot_grid(p1, p2, labels = c('A', 'B'), ncol = 2)
+    combined_plot <- plot_grid(p1, p2, labels = c("A", "B"), ncol = 2)
     ggsave(plot_path, plot = combined_plot, width = 8, height = 5, dpi = 300)
     message("Saved plot to: ", plot_path)
   }

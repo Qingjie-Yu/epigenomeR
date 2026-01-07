@@ -28,7 +28,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
     library(dplyr)
     library(tibble)
   })
-  
+
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Load data
@@ -46,7 +46,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
 
   orig <- read_feather(orig_cm_path)
   if ("pos" %in% colnames(orig)) orig <- tibble::column_to_rownames(orig, "pos")
-  
+
   row_sums_orig <- rowSums(orig, na.rm = TRUE)
   nozero <- orig[row_sums_orig != 0, ]
   if (nrow(nozero) == 0) {
@@ -88,13 +88,16 @@ add_regions_back_to_cluster <- function(orig_cm_path,
 
   if (plot) {
     histogram_path <- file.path(out_dir, "correlation_histogram.png")
-    
+
     png(histogram_path, width = 800, height = 600)
-    hist(max_cor, main = "Max Correlation Distribution", xlab = "Max Correlation",
-         col = "lightblue", border = "black", breaks = 50)
+    hist(max_cor,
+      main = "Max Correlation Distribution", xlab = "Max Correlation",
+      col = "lightblue", border = "black", breaks = 50
+    )
     abline(v = threshold, col = "red", lty = 2, lwd = 2)
     legend("topright", sprintf("%.0f%% = %.3f", quantile_threshold * 100, threshold),
-           col = "red", lty = 2)
+      col = "red", lty = 2
+    )
     dev.off()
     cat("Saved histogram:", histogram_path, "\n")
   }
@@ -108,8 +111,10 @@ add_regions_back_to_cluster <- function(orig_cm_path,
     row.names = names(max_cor)[high_cor_idx]
   )
 
-  cat(sprintf("Regions: %d total -> %d high correlation (%.1f%%)\n",
-              length(max_cor), sum(high_cor_idx), 100 * mean(high_cor_idx)))
+  cat(sprintf(
+    "Regions: %d total -> %d high correlation (%.1f%%)\n",
+    length(max_cor), sum(high_cor_idx), 100 * mean(high_cor_idx)
+  ))
 
   # Build result with priority-based labels
   row_sums <- rowSums(transformed, na.rm = TRUE)
@@ -117,7 +122,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
 
   result <- data.frame(feature = valid_features, label = "Background", stringsAsFactors = FALSE)
   result$label[result$feature %in% rownames(filtered)] <- "CRF_specific"
-  
+
   match_cor <- match(result$feature, high_cor_regions$feature)
   matched <- !is.na(match_cor)
   result$label[matched] <- high_cor_regions$best_cluster[match_cor[matched]]

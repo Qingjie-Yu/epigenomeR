@@ -26,7 +26,7 @@ calc_ht_size_heatmap <- function(mat, cell_width = 0.5, cell_height = 0.5) {
   popViewport()
 
   # Calculate dynamic width and height
-  heatmap_width <- length(col_labels) * cell_width + label_width_inch + 1  # add padding
+  heatmap_width <- length(col_labels) * cell_width + label_width_inch + 1 # add padding
   heatmap_height <- length(row_labels) * cell_height + label_height_inch + 1
   return(c(heatmap_width, heatmap_height))
 }

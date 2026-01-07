@@ -16,9 +16,8 @@ summary_sig_num <- function(load_dir, sig_result_dir, cluster_idx_list, l2fc_thr
 
   dir.create(sig_result_dir, recursive = TRUE, showWarnings = FALSE)
 
-  for(fdr_thres in fdr_thres_list){
-    for(mean_per_thres in mean_per_thres_list){
-
+  for (fdr_thres in fdr_thres_list) {
+    for (mean_per_thres in mean_per_thres_list) {
       fdr_sig_summary_table <- data.frame(
         column_cluster = cluster_idx_list,
         sig = 0,
@@ -26,13 +25,13 @@ summary_sig_num <- function(load_dir, sig_result_dir, cluster_idx_list, l2fc_thr
         down = 0
       )
 
-      for(i in seq_along(cluster_idx_list)){
+      for (i in seq_along(cluster_idx_list)) {
         col_label <- cluster_idx_list[i]
 
         # Read pre-computed results from limma_column_cluster_differential_regions
         result_file <- glue("{load_dir}/result_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_limma.feather")
 
-        if(file.exists(result_file)){
+        if (file.exists(result_file)) {
           top.table <- read_feather(result_file)
 
           # Calculate statistics based on thresholds
@@ -51,7 +50,7 @@ summary_sig_num <- function(load_dir, sig_result_dir, cluster_idx_list, l2fc_thr
       }
 
       out_file <- glue("summary_sig_num_{mean_per_thres}_FDR-{fdr_thres}_log2FC-{l2fc_thres}.tsv")
-      write.table(fdr_sig_summary_table, file.path(sig_result_dir, out_file), sep="\t", quote=FALSE, row.names=FALSE)
+      write.table(fdr_sig_summary_table, file.path(sig_result_dir, out_file), sep = "\t", quote = FALSE, row.names = FALSE)
     }
   }
 }

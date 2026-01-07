@@ -8,26 +8,26 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   } else {
     plot_data <- data
   }
-  
-  cell_width <- 8 
+
+  cell_width <- 8
   col_fontsize <- 10
   cell_height <- cell_width / aspect_ratio
   row_fontsize <- col_fontsize / aspect_ratio
   legend_height <- nrow(plot_data) * unit(cell_height, "mm") / 3
 
   h <- Heatmap(
-    plot_data, 
-    name = name, 
+    plot_data,
+    name = name,
     col = col_fun,
-    cluster_columns = FALSE, 
+    cluster_columns = FALSE,
     cluster_rows = FALSE,
-    row_names_side = "left", 
+    row_names_side = "left",
     row_names_gp = gpar(fontsize = row_fontsize),
-    column_names_side = "bottom", 
+    column_names_side = "bottom",
     column_names_gp = gpar(fontsize = col_fontsize),
     column_names_rot = 45,
-    width = ncol(plot_data) * unit(cell_width, "mm"), 
-    height = nrow(plot_data) * unit(cell_height, "mm"), 
+    width = ncol(plot_data) * unit(cell_width, "mm"),
+    height = nrow(plot_data) * unit(cell_height, "mm"),
     show_heatmap_legend = FALSE
   )
 
@@ -42,20 +42,20 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   )
 
   pdf_width <- convertWidth(
-    unit(ncol(plot_data) * cell_width, "mm") + unit(50, "mm"), 
-    "inches", 
+    unit(ncol(plot_data) * cell_width, "mm") + unit(50, "mm"),
+    "inches",
     valueOnly = TRUE
   )
   pdf_height <- convertHeight(
-    unit(nrow(plot_data) * cell_height, "mm") + unit(20, "mm"), 
-    "inches", 
+    unit(nrow(plot_data) * cell_height, "mm") + unit(20, "mm"),
+    "inches",
     valueOnly = TRUE
   )
-  
+
   pdf(out_path, width = pdf_width, height = pdf_height)
   draw(h, padding = unit(c(0, 0, 0, 22), "mm"))
-  draw(lgd,  x = unit(1, "npc") - unit(18, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
-  dev.off()  
+  draw(lgd, x = unit(1, "npc") - unit(18, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
+  dev.off()
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }
 
@@ -84,19 +84,23 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   if (length(tsv_path) != length(label)) {
     stop("tsv_path and label must have the same length")
   }
-  
+
   if (!dir.exists(out_dir)) {
-      dir.create(out_dir, recursive = TRUE)
+    dir.create(out_dir, recursive = TRUE)
   }
 
   # reorder
-  sorted_indices <- tryCatch({
-    order(as.numeric(label))
-  }, warning = function(w) {
-    order(label)
-  }, error = function(e) {
-    order(label)
-  })
+  sorted_indices <- tryCatch(
+    {
+      order(as.numeric(label))
+    },
+    warning = function(w) {
+      order(label)
+    },
+    error = function(e) {
+      order(label)
+    }
+  )
   label <- label[sorted_indices]
   tsv_path <- tsv_path[sorted_indices]
 
@@ -144,7 +148,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   target_hit_thresh <- quantile(target_hit_mat, 0.1, na.rm = TRUE)
   keep_tfbs <- rowSums(odds_ratio_mat >= 2, na.rm = TRUE) >= 1 &
     rowSums(FDR_mat <= 0.05, na.rm = TRUE) >= 1 &
-    rowSums(target_hit_mat >= target_hit_thresh, na.rm = TRUE) >= 1 
+    rowSums(target_hit_mat >= target_hit_thresh, na.rm = TRUE) >= 1
   odds_ratio_mat <- odds_ratio_mat[keep_tfbs, , drop = FALSE]
   FDR_mat <- FDR_mat[keep_tfbs, , drop = FALSE]
   cat(glue("Filtered to {sum(keep_tfbs)} TFBS from {length(keep_tfbs)} total"), "\n")
@@ -172,12 +176,12 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   odds_ratio_log2 <- log2(odds_ratio_mat)
   max_abs_val <- max(abs(odds_ratio_log2), na.rm = TRUE)
   col_fun <- colorRamp2(c(-max_abs_val, 0, max_abs_val), c("#3155C3", "white", "#AF0525"))
-  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment.pdf"), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster) 
+  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment.pdf"), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster)
 
   # second heatmap (top n)
   if (!is.null(top_n) && is.numeric(top_n) && top_n > 0) {
     cv <- apply(odds_ratio_mat, 1, sd, na.rm = TRUE) / abs(rowMeans(odds_ratio_mat, na.rm = TRUE))
-    top_tfbs <- names(head(sort(cv, decreasing =  TRUE), top_n))
+    top_tfbs <- names(head(sort(cv, decreasing = TRUE), top_n))
     odds_ratio_log2_topn <- odds_ratio_log2[top_tfbs, , drop = FALSE]
     cat(glue("Selected top {top_n} TFBS based on coefficient of variation"), "\n")
     draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_heatmap_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster, aspect_ratio = 1)

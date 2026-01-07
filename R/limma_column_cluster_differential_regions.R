@@ -17,10 +17,10 @@
 # Output: Saves differential analysis results, filtered count matrices, and significant regions for each cluster and threshold combination
 limma_column_cluster_differential_regions <- function(sample_names, case_num, control_num, wgc_file_path, sig_result_dir, col_cluster_file = NULL, normalization_factor = 1E6, lowess_span = 0.5, l2fc_thres = 0.5, mean_per_thres_list = c(0.25), fdr_thres_list = c(0.25), pseudocount_for_log = 1) { # cluster
   dir.create(sig_result_dir, recursive = TRUE, showWarnings = FALSE)
-  if(case_num < 2 || control_num < 2){
+  if (case_num < 2 || control_num < 2) {
     stop("Each condition must have at least 2 replicates.")
   }
-  if(length(sample_names) != (case_num+control_num)){
+  if (length(sample_names) != (case_num + control_num)) {
     stop("Length of sample_names must equal case_num+control_num.")
   }
 
@@ -36,12 +36,12 @@ limma_column_cluster_differential_regions <- function(sample_names, case_num, co
   })
 
   group1 <- sample_names[1:case_num]
-  group2 <- sample_names[(case_num+1):(case_num+control_num)]
+  group2 <- sample_names[(case_num + 1):(case_num + control_num)]
   conditions <- c(rep("condition1", case_num), rep("condition2", control_num))
   coldata <- data.frame("condition" = conditions, row.names = sample_names)
   group <- factor(coldata$condition)
   condition_levels <- levels(group)
-  mm <- model.matrix(~0 + group)
+  mm <- model.matrix(~ 0 + group)
 
   wgc_list <- lapply(wgc_file_path, function(f) column_to_rownames(read_feather(f), var = "pos"))
   names(wgc_list) <- sample_names
@@ -56,8 +56,10 @@ limma_column_cluster_differential_regions <- function(sample_names, case_num, co
     for (i in 1:(length(all_colnames) - 1)) {
       for (j in (i + 1):length(all_colnames)) {
         if (!identical(all_colnames_sorted[[i]], all_colnames_sorted[[j]])) {
-          mismatch_info <- c(mismatch_info,
-                             paste0("  File ", i, " (", sample_names[i], ") vs File ", j, " (", sample_names[j], ")"))
+          mismatch_info <- c(
+            mismatch_info,
+            paste0("  File ", i, " (", sample_names[i], ") vs File ", j, " (", sample_names[j], ")")
+          )
         }
       }
     }
@@ -103,7 +105,7 @@ limma_column_cluster_differential_regions <- function(sample_names, case_num, co
     # Combine counts for this cluster
     tmp_combine_orig <- do.call(
       cbind,
-      lapply(sample_names, function(s) rowSums(wgc_list[[s]][, target_pair_select_list, drop=FALSE]))
+      lapply(sample_names, function(s) rowSums(wgc_list[[s]][, target_pair_select_list, drop = FALSE]))
     )
     colnames(tmp_combine_orig) <- sample_names
 
@@ -166,11 +168,11 @@ limma_column_cluster_differential_regions <- function(sample_names, case_num, co
       d0_filtered <- DGEList(tmp_combine_filtered)
       d_filtered <- calcNormFactors(d0_filtered)
 
-      filtered_voom_plot_filename = glue("{sig_result_dir}/voom_plot_lowess_span-{lowess_span}_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}.pdf")
+      filtered_voom_plot_filename <- glue("{sig_result_dir}/voom_plot_lowess_span-{lowess_span}_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}.pdf")
       pdf(filtered_voom_plot_filename)
       y_filtered <- voom(d_filtered, mm, span = lowess_span, plot = TRUE)
       dev.off()
-      E_value_filtered = y_filtered$E
+      E_value_filtered <- y_filtered$E
 
       fit <- lmFit(y_filtered, mm)
       contr <- makeContrasts(groupcondition2 - groupcondition1, levels = colnames(coef(fit)))
@@ -179,34 +181,34 @@ limma_column_cluster_differential_regions <- function(sample_names, case_num, co
       top.table <- topTable(tmp, sort.by = "P", n = Inf)
 
       # save the variance histogram
-      E_value_filtered_var = rowVars(E_value_filtered)
-      var_hist_dir_filename = glue("{sig_result_dir}/hist_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_for_limma.pdf")
+      E_value_filtered_var <- rowVars(E_value_filtered)
+      var_hist_dir_filename <- glue("{sig_result_dir}/hist_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_for_limma.pdf")
       pdf(var_hist_dir_filename)
-      hist(E_value_filtered_var, breaks=100, main=glue("filter: {mean_per_thres}, col cluster: {col_label}\nregion #: {nrow(E_value_filtered)}, dof: {unique(tmp$df.total)}"), xlab="Variance", col="blue", border=FALSE)
+      hist(E_value_filtered_var, breaks = 100, main = glue("filter: {mean_per_thres}, col cluster: {col_label}\nregion #: {nrow(E_value_filtered)}, dof: {unique(tmp$df.total)}"), xlab = "Variance", col = "blue", border = FALSE)
       dev.off()
 
       # Plot two histograms
-      top.table$P.Value[top.table$P.Value == 0] = 1E-300
-      top.table$adj.P.Val[top.table$adj.P.Val == 0] = 1E-300
-      p_list = -log10(top.table$P.Value)
-      fdr_list = -log10(top.table$adj.P.Val)
+      top.table$P.Value[top.table$P.Value == 0] <- 1E-300
+      top.table$adj.P.Val[top.table$adj.P.Val == 0] <- 1E-300
+      p_list <- -log10(top.table$P.Value)
+      fdr_list <- -log10(top.table$adj.P.Val)
 
       # Save full table for this threshold
       # significant count matrix
-      top.table_for_save = rownames_to_column(top.table, var = "pos")
-      top.table_for_save_dir_filename = glue("{sig_result_dir}/result_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_limma.feather")
+      top.table_for_save <- rownames_to_column(top.table, var = "pos")
+      top.table_for_save_dir_filename <- glue("{sig_result_dir}/result_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_limma.feather")
       write_feather(top.table_for_save, top.table_for_save_dir_filename)
 
       # Save significant regions for each FDR threshold
       for (fdr_thres in fdr_thres_list) {
         top.table_sig <- top.table[(top.table$adj.P.Val < fdr_thres) & (abs(top.table$logFC) > l2fc_thres), ]
-        sig_region_num = nrow(top.table_sig)
+        sig_region_num <- nrow(top.table_sig)
         if (sig_region_num == 0) {
           print(glue("Will not save for cluster {col_label}!"))
         } else if (sig_region_num > 0) {
           top.table_sig_filename <- glue("{sig_result_dir}/result_post-limmanorm_post-filter-one_condition_nonzero-2_rowmean-{mean_per_thres}_column_cluster-{col_label}_limma_FDR.tsv")
           write.table(top.table_sig, top.table_sig_filename, sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
-          sig_region_list = rownames(top.table_sig)
+          sig_region_list <- rownames(top.table_sig)
 
           for (sample_name in sample_names) {
             wgc_orig_select_pre <- wgc_list[[sample_name]][, target_pair_select_list]

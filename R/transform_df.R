@@ -21,5 +21,5 @@ transform_df <- function(df, transformations = c("log2")) {
       next
     }
   }
-  return (result)
+  return(result)
 }

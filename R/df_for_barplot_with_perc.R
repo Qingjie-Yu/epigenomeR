@@ -69,8 +69,7 @@ df_for_barplot_with_perc <- function(bam_file_path, save_dir, valley1, valley2) 
   colnames(result_df)[3] <- glue::glue("monomer")
   colnames(result_df)[4] <- glue::glue("dimer")
   out_path <- file.path(save_dir, "df_for_barplot_with_perc_result.tsv")
-  write.table(result_df, file = out_path, sep = "\t", quote = FALSE, row.names = FALSE )
+  write.table(result_df, file = out_path, sep = "\t", quote = FALSE, row.names = FALSE)
 
   return(list(df_for_barplot_with_perc = result_df, file_path = out_path))
-
 }

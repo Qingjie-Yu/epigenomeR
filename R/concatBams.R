@@ -20,7 +20,7 @@ concatBams <- function(bamFiles, save_dir) {
   if (!dir.exists(save_dir)) {
     dir.create(save_dir, recursive = TRUE)
   }
-  bamWidths_dir_filename = file.path(save_dir, "premerge_all-qc_frag_lens.RData")
+  bamWidths_dir_filename <- file.path(save_dir, "premerge_all-qc_frag_lens.RData")
 
   if (file.exists(bamWidths_dir_filename)) {
     load(bamWidths_dir_filename)
@@ -28,19 +28,21 @@ concatBams <- function(bamFiles, save_dir) {
     bamWidths <- c()
     for (bamFile in bamFiles) {
       temp <- readGAlignmentPairs(bamFile)
-      locus <- data.frame(first_start = start(temp@first),
-                          first_end = end(temp@first),
-                          last_start = start(temp@last),
-                          last_end = end(temp@last))
+      locus <- data.frame(
+        first_start = start(temp@first),
+        first_end = end(temp@first),
+        last_start = start(temp@last),
+        last_end = end(temp@last)
+      )
       start <- rowMin(as.matrix(locus))
       end <- rowMax(as.matrix(locus))
-      strand <- '*'
+      strand <- "*"
       seqnames <- as.vector(seqnames(temp))
       bam <- makeGRangesFromDataFrame(data.frame(seqnames = seqnames, strand = strand, start = start, end = end))
       bamWidths <- append(bamWidths, width(bam))
     }
-    save(bamWidths, file=bamWidths_dir_filename)
+    save(bamWidths, file = bamWidths_dir_filename)
     # write.csv(bamWidths, saveDirectory)
   }
-  return (bamWidths)
+  return(bamWidths)
 }

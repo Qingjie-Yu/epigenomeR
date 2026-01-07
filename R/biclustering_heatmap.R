@@ -35,16 +35,16 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
 
   calculate_ht_size <- function(ht, heatmap_legend_side = NULL, unit = "inch") {
     pdf(NULL)
-    ht = draw(ht, heatmap_legend_side=heatmap_legend_side, background = "transparent")
-    w = ComplexHeatmap:::width(ht)
-    w = convertX(w, unit, valueOnly = TRUE)
-    h = ComplexHeatmap:::height(ht)
-    h = convertY(h, unit, valueOnly = TRUE)
+    ht <- draw(ht, heatmap_legend_side = heatmap_legend_side, background = "transparent")
+    w <- ComplexHeatmap:::width(ht)
+    w <- convertX(w, unit, valueOnly = TRUE)
+    h <- ComplexHeatmap:::height(ht)
+    h <- convertY(h, unit, valueOnly = TRUE)
     dev.off()
     c(w, h)
   }
-  
-  calculate_cell_size <- function(row_labels, col_labels, row_fontsize, col_fontsize, default_cell_width = 5,  safety_factor = 1.5, lower_quantile = 0.8, upper_quantile = 0.5) {
+
+  calculate_cell_size <- function(row_labels, col_labels, row_fontsize, col_fontsize, default_cell_width = 5, safety_factor = 1.5, lower_quantile = 0.8, upper_quantile = 0.5) {
     default_cell_height <- default_cell_width * length(col_labels) / length(row_labels)
 
     row_counts <- table(row_labels)
@@ -54,7 +54,7 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
     min_cell_height_lower <- row_text_height / lower_count_row
     upper_count_row <- quantile(row_counts, upper_quantile, type = 1)
     max_cell_height_upper <- row_text_height * 4 / upper_count_row
-    
+
     col_counts <- table(col_labels)
     unique_col_labels <- names(col_counts)
     col_text_widths <- sapply(unique_col_labels, function(label) {
@@ -80,30 +80,30 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
     }
 
     list(
-        cell_width_mm = final_cell_width,
-        cell_height_mm = final_cell_height
+      cell_width_mm = final_cell_width,
+      cell_height_mm = final_cell_height
     )
   }
-  
+
   calculate_legend_fontsize <- function(col_labels, cell_width_mm, legend_title = "Normalized Read Counts", safety_factor = 1.2) {
     available_width_mm <- length(col_labels) * cell_width_mm * safety_factor
     title_chars <- nchar(legend_title)
-    max_title_fontsize <- available_width_mm  / (title_chars * 0.2)
+    max_title_fontsize <- available_width_mm / (title_chars * 0.2)
     max_title_fontsize
   }
 
   # load row cluster info
-  row_cluster <- read.table(row_cluster_file_path, header=TRUE, sep="\t", row.names=NULL)
+  row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
   row_cluster <- row_cluster[row_cluster$feature %in% rownames(mat), ]
   row_order <- row_cluster$feature
   row_split <- row_cluster$label
 
   # load col cluster info
-  col_cluster <- read.table(col_cluster_file_path, header=TRUE, sep="\t", row.names=NULL)
+  col_cluster <- read.table(col_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
   col_cluster <- col_cluster[col_cluster$feature %in% colnames(mat), ]
   col_order <- col_cluster$feature
   col_split <- as.numeric(factor(col_cluster$label))
-  
+
   mat <- mat[row_order, col_order]
   if (is.null(lower_range) || lower_range == "") {
     lower_range <- min(mat, na.rm = TRUE)
@@ -119,26 +119,27 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
   }
   if (is.null(col_title_fontsize)) {
     col_title_fontsize <- 20
-  } 
+  }
   if (is.null(legend_title_fontsize)) {
     legend_title_fontsize <- 15
   }
   if (is.null(legend_label_fontsize)) {
     legend_label_fontsize <- 15
   }
-  
+
   cell_size <- calculate_cell_size(row_labels = row_split, col_labels = col_split, row_fontsize = row_title_fontsize, col_fontsize = col_title_fontsize)
-  cell_width = cell_size$cell_width_mm
-  cell_height = cell_size$cell_height_mm
-  
+  cell_width <- cell_size$cell_width_mm
+  cell_height <- cell_size$cell_height_mm
+
   max_legend_title_fontsize <- calculate_legend_fontsize(col_labels = col_split, cell_width_mm = cell_width)
   legend_title_fontsize <- min(legend_label_fontsize, max_legend_title_fontsize)
-  
+
   ht <- Heatmap(
-    mat, col = col_fun,
+    mat,
+    col = col_fun,
     # Clustering setting
     cluster_columns = FALSE, cluster_rows = FALSE,
-    cluster_row_slices = FALSE, 
+    cluster_row_slices = FALSE,
     row_order = row_order, column_order = col_order,
     row_dend_reorder = FALSE,
     row_split = row_split, column_split = col_split,
@@ -150,18 +151,18 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
     row_title_gp = gpar(fontsize = row_title_fontsize), column_title_gp = gpar(fontsize = col_title_fontsize),
     show_row_names = FALSE, show_column_names = show_column_names,
     column_labels = TeX(colnames(mat)),
-    row_title_rot = 0, 
+    row_title_rot = 0,
     use_raster = TRUE,
 
     # Cell setting
-    border=TRUE,
+    border = TRUE,
     rect_gp = gpar(col = NA, lwd = 0),
     border_gp = gpar(col = "white", lwd = 0),
 
-    # Legend setting 
+    # Legend setting
     heatmap_legend_param = list(
       title = "Normalized Read Counts",
-      legend_width = ncol(mat) /2 * unit(cell_width, "mm"),
+      legend_width = ncol(mat) / 2 * unit(cell_width, "mm"),
       grid_height = 2 * unit(cell_width, "mm"),
       title_position = "topcenter",
       title_gp = gpar(fontsize = legend_title_fontsize),
@@ -169,14 +170,14 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
       legend_direction = "horizontal"
     )
   )
-  ht_size <- calculate_ht_size(ht, heatmap_legend_side="bottom")
+  ht_size <- calculate_ht_size(ht, heatmap_legend_side = "bottom")
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE)
   }
 
   out_path <- file.path(out_dir, "biclustering_heatmap.pdf")
-  pdf(out_path, width=ht_size[1], height=ht_size[2])
-  draw(ht, heatmap_legend_side="bottom", background = "transparent")
+  pdf(out_path, width = ht_size[1], height = ht_size[2])
+  draw(ht, heatmap_legend_side = "bottom", background = "transparent")
   dev.off()
   message("Heatmap saved to: ", out_path)
 }

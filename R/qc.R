@@ -45,7 +45,7 @@ qc <- function(file_path, filtered_percentile = 0.25, out_dir = "./", save = TRU
       temp <- readGAlignmentPairs(file_path)
       count <- length(temp)
     } else if (ext == "bed") {
-      peak <- ChIPseeker::readPeakFile(file_path, as = "GRanges")   # Use ChIPseeker to read peak files
+      peak <- ChIPseeker::readPeakFile(file_path, as = "GRanges") # Use ChIPseeker to read peak files
       count <- length(peak)
     }
     df <- rbind(df, data.frame(pair = file_name, read_count = count, stringsAsFactors = FALSE)) # return: total df

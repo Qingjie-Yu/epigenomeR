@@ -2,7 +2,7 @@ all_files_in_a_folder <- function(dir, ext = ".bam", want = c("files_path", "fil
   files <- list.files(path = dir, pattern = paste0("\\", ext, "$"), recursive = TRUE, full.names = TRUE)
   files <- files[!grepl("unknown|is", files, ignore.case = TRUE)]
 
-  if(filter_IgG == TRUE) {
+  if (filter_IgG == TRUE) {
     files <- files[!grepl("IgG", files, ignore.case = TRUE)]
   }
   want <- match.arg(want)

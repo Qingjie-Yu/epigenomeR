@@ -1,12 +1,12 @@
 # Biclustering Analysis Wrapper
-# 
+#
 # Performs biclustering analysis on chromatin accessibility count matrices,
 # with optional filtering, k-means clustering, and gene annotation of genomic regions.
-# 
+#
 # Parameters:
-#   cm_path: Path to the count matrix `.feather` file or a vector of paths to 
+#   cm_path: Path to the count matrix `.feather` file or a vector of paths to
 #            multiple count matrix files to be merged.
-#   out_dir: Directory to save all output files (cluster tables, filtered matrices, 
+#   out_dir: Directory to save all output files (cluster tables, filtered matrices,
 #            annotation plots).
 #   apply_filter: Logical. Controls whether to further filter genomic regions.
 #       - When the genome was segmented into equal-sized bins
@@ -32,50 +32,49 @@
 #   plot: Logical. Whether to generate diagnostic plots during filtering and biclustering steps. Default: TRUE
 
 
-
-biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 3, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic","ccre"), plot = TRUE) {
-    # Step1: Merge all the count matrix files
-    if (is.vector(cm_path) && length(cm_path) > 1) {
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        cat("  Merge all count matrix files")
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        merged_cm_path <- merge_count_matrices(cm_path = cm_path, out_dir = out_dir)
-    } else {
-        merged_cm_path <- cm_path
-    }
-
-    # Step2: Apply transformation
+biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 3, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
+  # Step1: Merge all the count matrix files
+  if (is.vector(cm_path) && length(cm_path) > 1) {
     cat("\n", strrep("=", 40), "\n", sep = "")
-    cat("  Apply transformation")
+    cat("  Merge all count matrix files")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    transformed_cm_path <- apply_transformations(cm_path = merged_cm_path, out_dir = out_dir)
+    merged_cm_path <- merge_count_matrices(cm_path = cm_path, out_dir = out_dir)
+  } else {
+    merged_cm_path <- cm_path
+  }
 
-    # Step3: Filter highly variable regions
-    if (apply_filter) {
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        cat("  Filter highly variable regions")
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        f_cm_path <- detect_hvr(transformed_cm_path = transformed_cm_path, out_dir = out_dir, plot = plot)
-    } else {
-        f_cm_path <- transformed_cm_path
-    }
+  # Step2: Apply transformation
+  cat("\n", strrep("=", 40), "\n", sep = "")
+  cat("  Apply transformation")
+  cat("\n", strrep("=", 40), "\n", sep = "")
+  transformed_cm_path <- apply_transformations(cm_path = merged_cm_path, out_dir = out_dir)
 
-    # Step3: Biclustering 
+  # Step3: Filter highly variable regions
+  if (apply_filter) {
     cat("\n", strrep("=", 40), "\n", sep = "")
-    cat("  Biclustering")
+    cat("  Filter highly variable regions")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    cluster_list <- biclustering(cm_path = f_cm_path, row_km = row_km, col_km = col_km, out_dir = out_dir, plot =  plot)
+    f_cm_path <- detect_hvr(transformed_cm_path = transformed_cm_path, out_dir = out_dir, plot = plot)
+  } else {
+    f_cm_path <- transformed_cm_path
+  }
 
-    # Step4: Biclustering annotation
-    if (apply_annotation) {
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        cat("  Annotation")
-        cat("\n", strrep("=", 40), "\n", sep = "")
-        genomic_dir <- file.path(out_dir, "genomic_distribution")
-        tfbs_dir <- file.path(out_dir, "TFBS_enrichment")
-        dir.create(genomic_dir, recursive = TRUE, showWarnings = FALSE)
-        dir.create(tfbs_dir, recursive = TRUE, showWarnings = FALSE)
-        biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, out_dir = genomic_dir, distributions = distributions, ref_genome = ref_genome, ref_source = ref_source)
-        biclustering_TFBS_enrichment(row_cluster_file_path = cluster_list$row_table, out_dir = tfbs_dir, ref_genome = ref_genome, ref_source = ref_source)
-    }
+  # Step3: Biclustering
+  cat("\n", strrep("=", 40), "\n", sep = "")
+  cat("  Biclustering")
+  cat("\n", strrep("=", 40), "\n", sep = "")
+  cluster_list <- biclustering(cm_path = f_cm_path, row_km = row_km, col_km = col_km, out_dir = out_dir, plot = plot)
+
+  # Step4: Biclustering annotation
+  if (apply_annotation) {
+    cat("\n", strrep("=", 40), "\n", sep = "")
+    cat("  Annotation")
+    cat("\n", strrep("=", 40), "\n", sep = "")
+    genomic_dir <- file.path(out_dir, "genomic_distribution")
+    tfbs_dir <- file.path(out_dir, "TFBS_enrichment")
+    dir.create(genomic_dir, recursive = TRUE, showWarnings = FALSE)
+    dir.create(tfbs_dir, recursive = TRUE, showWarnings = FALSE)
+    biclustering_genomic_distribution(row_cluster_file_path = cluster_list$row_table, out_dir = genomic_dir, distributions = distributions, ref_genome = ref_genome, ref_source = ref_source)
+    biclustering_TFBS_enrichment(row_cluster_file_path = cluster_list$row_table, out_dir = tfbs_dir, ref_genome = ref_genome, ref_source = ref_source)
+  }
 }

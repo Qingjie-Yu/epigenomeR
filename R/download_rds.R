@@ -46,26 +46,29 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
 
   if (needs_download) {
     max_try <- 3
-    success <- FALSE 
+    success <- FALSE
     for (i in seq_len(max_try)) {
-      tryCatch({
-        message("Downloading: ", zip_name, " (attempt ", i, "/", max_try, ")")
-        utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
-        utils::unzip(zip_path, exdir = cache_dir)
-        if (!file.exists(rds_path)) {
-          stop("Unzipped file not found: ", rds_path)
+      tryCatch(
+        {
+          message("Downloading: ", zip_name, " (attempt ", i, "/", max_try, ")")
+          utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
+          utils::unzip(zip_path, exdir = cache_dir)
+          if (!file.exists(rds_path)) {
+            stop("Unzipped file not found: ", rds_path)
+          }
+          sha256_local <- digest::digest(file = rds_path, algo = "sha256")
+          if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
+            stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
+          }
+          success <- TRUE
+          unlink(zip_path, force = TRUE)
+          break
+        },
+        error = function(e) {
+          message("Attempt ", i, " failed: ", e$message)
+          unlink(c(rds_path, zip_path), force = TRUE)
         }
-        sha256_local <- digest::digest(file = rds_path, algo = "sha256")
-        if (!identical(tolower(sha256_local), tolower(sha256_list[[rds_name]]))) {
-          stop("sha256 mismatch for ", rds_name, "\nExpected: ", sha256_list[[rds_name]], "\nObserved: ", sha256_local)
-        }
-        success <- TRUE
-        unlink(zip_path, force = TRUE) 
-        break
-      }, error = function(e) {
-        message("Attempt ", i, " failed: ", e$message)
-        unlink(c(rds_path, zip_path), force = TRUE)
-      })
+      )
 
       if (!success && i < max_try) {
         Sys.sleep(2^i)

@@ -1,7 +1,7 @@
 # Bidirectional K-means Clustering with Hierarchical Ordering
 #
-# Performs consensus k-means clustering on matrix rows and columns, then hierarchically 
-# orders the resulting cluster groups to create ordered cluster assignments similar to 
+# Performs consensus k-means clustering on matrix rows and columns, then hierarchically
+# orders the resulting cluster groups to create ordered cluster assignments similar to
 # ComplexHeatmap package output.
 #
 # Parameters:
@@ -13,9 +13,9 @@
 #   seed: Random seed for reproducibility (default: 42)
 #   do_order_clusters: Whether to hierarchically order clusters (default: TRUE)
 #                      If FALSE, clusters are ordered by mean expression
-#   cluster_distance: Distance metric for cluster-level hierarchical clustering 
+#   cluster_distance: Distance metric for cluster-level hierarchical clustering
 #                     (default: "euclidean"; options: "manhattan", "maximum", etc.)
-#   cluster_linkage: Linkage method for cluster-level hierarchical clustering 
+#   cluster_linkage: Linkage method for cluster-level hierarchical clustering
 #                    (default: "complete"; options: "average", "single", "ward.D2", etc.)
 #   do_reorder_within_clusters: Whether to reorder features within each cluster (default: TRUE)
 #                               If FALSE, features maintain their original order within clusters
@@ -31,8 +31,7 @@
 #     - col_num: Named integer vector with cluster numbers (1, 2, 3, ...) for each column
 #                Names are column names, ordered by optimal display order
 
-bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, col_repeats = 1, seed = 42, do_order_clusters = TRUE, cluster_distance = "euclidean", cluster_linkage = "complete", do_reorder_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL
-) {
+bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, col_repeats = 1, seed = 42, do_order_clusters = TRUE, cluster_distance = "euclidean", cluster_linkage = "complete", do_reorder_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL) {
   if (!is.matrix(mat)) {
     stop("Input must be a matrix, not ", class(mat)[1], call. = FALSE)
   }
@@ -41,14 +40,14 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
   }
 
   if (is.null(feature_distance)) {
-    feature_distance = cluster_distance
+    feature_distance <- cluster_distance
   }
   if (is.null(feature_linkage)) {
-    feature_linkage = cluster_linkage
+    feature_linkage <- cluster_linkage
   }
 
   set.seed(seed)
-  
+
   # Consensus k-means
   consensus_kmeans <- function(m, k, reps) {
     parts <- lapply(seq_len(reps), function(i) {
@@ -58,13 +57,13 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
     as.vector(clue::cl_class_ids(cons))
   }
 
-  # Order clusters hierarchically 
+  # Order clusters hierarchically
   order_clusters <- function(m, cl, do_order) {
     unique_cl <- sort(unique(cl))
     row_mean <- sapply(unique_cl, function(i) {
       colMeans(m[cl == i, , drop = FALSE], na.rm = TRUE)
     })
-    if (!is.matrix(row_mean)) row_mean <- matrix(row_mean, nrow = 1) 
+    if (!is.matrix(row_mean)) row_mean <- matrix(row_mean, nrow = 1)
     if (!do_order) {
       order <- order(colMeans(row_mean))
     } else {

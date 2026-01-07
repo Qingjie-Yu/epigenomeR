@@ -8,9 +8,9 @@ get_cluster_df <- function(df, prefix) {
   # - "label": the prefix (group label)
   # - "nonprefix": the original column names (to help with ordering)
   data.frame(
-    feature    = paste0(prefix, ":", original_names),
-    label      = prefix,
-    nonprefix  = original_names,
+    feature = paste0(prefix, ":", original_names),
+    label = prefix,
+    nonprefix = original_names,
     stringsAsFactors = FALSE
   )
 }

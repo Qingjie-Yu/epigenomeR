@@ -1,4 +1,4 @@
-map_target_names <- function(target_pair_list, target_pair_mapping_df_path = NULL, from = "targets", to = "shorthand" ) {
+map_target_names <- function(target_pair_list, target_pair_mapping_df_path = NULL, from = "targets", to = "shorthand") {
   if (is.null(target_pair_mapping_df_path)) {
     data("target_pair_short_hand", package = "multiEpiCore", envir = environment())
     target_pair_mapping_df <- target_pair_short_hand

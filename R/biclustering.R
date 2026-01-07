@@ -42,13 +42,13 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
 
   df_row <- data.frame(
     feature = names(row_letter),
-    label   = unname(row_letter),
+    label = unname(row_letter),
     stringsAsFactors = FALSE
   )
 
   df_col <- data.frame(
     feature = names(col_num),
-    label   = unname(col_num),
+    label = unname(col_num),
     stringsAsFactors = FALSE
   )
 
@@ -60,7 +60,7 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   message("Saved cluster assignments to:")
   message("  - row clusters: ", path1)
   message("  - col clusters: ", path1)
-  
+
   if (plot) {
     message("Generating heatmap...")
     mat_sorted <- mat[names(result$row_letter), names(result$col_num)]

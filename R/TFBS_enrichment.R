@@ -3,11 +3,11 @@
 # Internal function that performs TFBS enrichment analysis for a single set of
 # target regions against control regions using Fisher's exact test.
 
-TFBS_enrichment_single <- function(query_gr, control_gr, TFBS_library, regions = NULL, out_path = "./TFBS_enrichment.tsv") {
+TFBS_enrichment_single <- function(query_gr, control_gr, TFBS_library, regions = NULL, out_path = "./TFBS_enrichment.tsv", BPPARAM = BiocParallel::SerialParam()) {
   # Resize regions if specified
   if (!is.null(regions)) {
-    query_gr <- resize(query_gr, width = regions, fix = 'center')
-    control_gr <- resize(control_gr, width = regions, fix = 'center')
+    query_gr <- resize(query_gr, width = regions, fix = "center")
+    control_gr <- resize(control_gr, width = regions, fix = "center")
   }
 
   # Count overlaps between motif sites and regions
@@ -26,34 +26,32 @@ TFBS_enrichment_single <- function(query_gr, control_gr, TFBS_library, regions =
     control_off = n_control - control_overlap
   )
 
-  test_result[, c("odds_ratio", "pvalue", "odds_ratio_se") := {
-    # Add pseudocount to avoid zeros in Fisher's test
-    a <- target_hit + 1
-    b <- control_hit + 1
-    c <- target_off + 1
-    d <- control_off + 1
-    
-    odds_ratios <- numeric(.N)
-    pvalues <- numeric(.N)
-    odds_ses <- numeric(.N)
-    
-    for (i in seq_len(.N)) {
-      test_table <- matrix(c(a[i], b[i], c[i], d[i]), nrow = 2,
-                          dimnames = list(c("query", "control"), c("hit", "off")))
-      
-      odds_ses[i] <- sqrt(sum(1 / test_table))
-      test_res <- fisher.test(test_table, alternative = "greater")
-      odds_ratios[i] <- test_res$estimate
-      pvalues[i] <- test_res$p.value
-    }
-    
-    list(odds_ratios, pvalues, odds_ses)
-  }]
+  fisher_results <- BiocParallel::bplapply(seq_len(nrow(test_result)), function(i) {
+    row <- test_result[i, ]
+    contingency_table <- matrix(
+      c(row$target_hit + 1, row$control_hit + 1,
+        row$target_off + 1, row$control_off + 1),
+      nrow = 2,
+      dimnames = list(c("query", "control"), c("hit", "off"))
+    )
+    test_res <- fisher.test(contingency_table, alternative = "greater")
+    list(
+      odds_ratio = as.numeric(test_res$estimate),
+      pvalue = test_res$p.value,
+      odds_ratio_se = sqrt(sum(1 / contingency_table))
+    )
+  }, BPPARAM = BPPARAM)
+
+  test_result[, `:=`(
+    odds_ratio = vapply(fisher_results, `[[`, numeric(1), "odds_ratio"),
+    pvalue = vapply(fisher_results, `[[`, numeric(1), "pvalue"),
+    odds_ratio_se = vapply(fisher_results, `[[`, numeric(1), "odds_ratio_se")
+  )]
 
   # Multiple testing correction
   test_result[, FDR := p.adjust(pvalue, method = "BH")]
   setorder(test_result, pvalue)
-  
+
   # Save results
   res <- as.data.frame(test_result)
   rownames(res) <- res$TF
@@ -63,7 +61,7 @@ TFBS_enrichment_single <- function(query_gr, control_gr, TFBS_library, regions =
   n_significant <- sum(res$FDR < 0.05)
   message(glue("Results saved to {out_path}"))
   message(glue("Found {n_significant} significant motifs at FDR < 0.05"))
-  
+
   invisible(out_path)
 }
 
@@ -108,6 +106,20 @@ TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38",
     library(glue)
   })
 
+  # Set up parallel processing
+  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
+  cat(sprintf("Using %d CPU cores\n", n_cores))
+
+  if (n_cores > 1) {
+    if (.Platform$OS.type == "unix") {
+      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
+    } else {
+      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
+    }
+  } else {
+    BPPARAM <- BiocParallel::SerialParam()
+  }
+
   # Validate inputs
   if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {
     stop("Query must be a GRanges or GRangesList object")
@@ -120,7 +132,7 @@ TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38",
   }
 
   if (!dir.exists(out_dir)) {
-      dir.create(out_dir, recursive = TRUE)
+    dir.create(out_dir, recursive = TRUE)
   }
 
   # Load TFBS library
@@ -150,7 +162,7 @@ TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38",
     message(glue("Filtering motif sites using {length(functional_region)} functional regions"))
     TFBS_library <- endoapply(TFBS_library, subsetByOverlaps, functional_region)
     TFBS_library <- TFBS_library[lengths(TFBS_library) > 0]
-    
+
     if (sum(lengths(TFBS_library)) == 0) {
       warning("No motif sites overlap with the provided functional regions.")
       return(invisible(NULL))
@@ -163,35 +175,36 @@ TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38",
     # Single GRanges input
     message("Counting overlaps and performing enrichment analysis...")
     out_path <- file.path(out_dir, "TFBS_enrichment.tsv")
-    
+
     result_path <- TFBS_enrichment_single(
       query_gr = query,
       control_gr = control,
       TFBS_library = TFBS_library,
       regions = regions,
-      out_path = out_path
+      out_path = out_path,
+      BPPARAM = BPPARAM
     )
-    
+
     return(invisible(result_path))
-    
   } else {
     # GRangesList input - batch processing
     message(glue("Processing {length(query)} target region sets..."))
 
     result_paths <- sapply(names(query), function(label) {
       message(glue("\nProcessing: {label} ({length(query[[label]])} regions)"))
-      
+
       out_path <- file.path(out_dir, paste0("TFBS_enrichment_", label, ".tsv"))
-      
+
       TFBS_enrichment_single(
         query_gr = query[[label]],
         control_gr = control,
         TFBS_library = TFBS_library,
         regions = regions,
-        out_path = out_path
+        out_path = out_path,
+        BPPARAM = BPPARAM
       )
     })
-    
+
     message(glue("\n{length(result_paths)} enrichment analyses completed"))
     return(invisible(result_paths))
   }

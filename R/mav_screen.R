@@ -1,6 +1,6 @@
 # MAV Screen Function
 # Purpose: Model mean-variance relationship and identify overdispersed features.
-# 
+#
 # Parameters:
 #   transformed_cm_path: Single input .feather file containing transformed count matrix (first column must be "pos").
 #   out_dir: Output directory (default = "./")
@@ -12,8 +12,8 @@
 #   nrow_sample_per: Proportion of rows to randomly sample for density plot (default = 0.2, i.e., 20%).
 #   plot: Whether to generate and save diagnostic plots (default = FALSE).
 #
-# Output: 
-#   Annotated dataframe saved as a .feather file and (optional) two diagnostic plots saved as .PNG. 
+# Output:
+#   Annotated dataframe saved as a .feather file and (optional) two diagnostic plots saved as .PNG.
 #   Returns the path of the .feather file.
 
 mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam", k = NULL, span = NULL, seed = 42, font_size = 10, nrow_sample_per = 0.2, plot = FALSE) {
@@ -36,7 +36,7 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
   mat <- as.matrix(column_to_rownames(read_feather(transformed_cm_path), var = "pos"))
   region_mean <- rowMeans(mat)
   region_var <- rowVars(mat)
-  data_fit <- data.frame(mean = region_mean, var = region_var) 
+  data_fit <- data.frame(mean = region_mean, var = region_var)
 
   # Set regression model
   message("Fitting ", fitting_model, " model...")
@@ -47,7 +47,7 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
     if (is.null(span)) span <- 0.5
     fit_model <- loess(log2(var) ~ log2(mean), data = data_fit, span = span)
   }
-  
+
   # Initial fitting
   var_expected <- 2^(fit_model$fitted)
   sd_expected <- sqrt(var_expected)
@@ -56,7 +56,7 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
   norm_mean <- rowMeans(mat_normalized)
   norm_var <- rowVars(mat_normalized)
   hypervar <- rowSums(mat_normalized^2) / (ncol(mat) - 1)
-  
+
   # Save filtered count matrix
   result <- data.frame(
     pos = rownames(mat),
@@ -88,24 +88,28 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
     density_plot_path <- file.path(out_dir, paste0(input_name, "_fit_density.png"))
 
     # Plot A: Mean-variance relationship with fitted curve
-    p1 <- ggplot(result, aes(log2_mean, log2_var)) + 
-      geom_point(alpha = 1/20) +
+    p1 <- ggplot(result, aes(log2_mean, log2_var)) +
+      geom_point(alpha = 1 / 20) +
       geom_point(aes(y = log2_var_expect), color = "red", size = 0.1) +
       labs(x = "log2(mean)", y = "log2(variance)") +
       theme_bw() +
-      theme(axis.text = element_text(size = font_size), 
-            axis.title = element_text(size = font_size))
+      theme(
+        axis.text = element_text(size = font_size),
+        axis.title = element_text(size = font_size)
+      )
 
     # Plot B: Hypervariance distribution across mean expression
-    p2 <- ggplot(result, aes(log2_mean, hypervar)) + 
-      geom_point(alpha = 1/20) +
+    p2 <- ggplot(result, aes(log2_mean, hypervar)) +
+      geom_point(alpha = 1 / 20) +
       labs(x = "log2(mean)", y = "Hypervariance") +
       theme_bw() +
-      theme(axis.text = element_text(size = font_size), 
-            axis.title = element_text(size = font_size))
+      theme(
+        axis.text = element_text(size = font_size),
+        axis.title = element_text(size = font_size)
+      )
 
     # Combine and save main diagnostic plots
-    combined_plot <- plot_grid(p1, p2, labels = c('A', 'B'))
+    combined_plot <- plot_grid(p1, p2, labels = c("A", "B"))
     ggsave(main_plot_path, plot = combined_plot, width = 8, height = 5)
     message("  Saved main plot to: ", main_plot_path)
 
@@ -115,13 +119,15 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
     message("  Sampling ", nrow_sample, " regions for density plot")
 
     p3 <- ggplot(result_sample, aes(log2_mean, log2_var)) +
-      geom_pointdensity() + 
+      geom_pointdensity() +
       scale_color_viridis_c() +
       geom_point(data = result, aes(y = log2_var_expect), color = "red", size = 0.1) +
       labs(x = "log2(mean)", y = "log2(variance)") +
       theme_bw() +
-      theme(axis.text = element_text(size = font_size), 
-            axis.title = element_text(size = font_size))
+      theme(
+        axis.text = element_text(size = font_size),
+        axis.title = element_text(size = font_size)
+      )
 
     ggsave(density_plot_path, plot = p3, width = 4, height = 5)
     message("  Saved density plot to: ", density_plot_path)

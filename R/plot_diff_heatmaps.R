@@ -18,7 +18,6 @@
 #            target_pair_mapping_df_path: Path to target name mapping file, or NULL for no mapping (default: NULL)
 # Output: Saves PDF heatmap files for each cluster showing log2 expression values with blue-white-red color scheme, organized by sample groups
 plot_diff_heatmaps <- function(sample_names, load_dir, sig_result_dir, col_cluster_file = NULL, cluster_idx_list = NULL, show_heatmap_legend = "off", show_colnames = "off", col_size_coef = 20, colnames_fontsize = 10, width_base = 8, random_seed = 42, font_size = 50, target_pair_mapping_df_path = NULL, mean_per_thres = "0.25", fdr_thres = "0.25", l2fc_thres = 0.5) {
-
   # Load libraries
   suppressPackageStartupMessages({
     library(arrow)
@@ -89,31 +88,31 @@ plot_diff_heatmaps <- function(sample_names, load_dir, sig_result_dir, col_clust
     col_num <- ncol(wgc_log2_cbind)
 
     ht <- Heatmap(as.matrix(wgc_log2_cbind),
-                  name = "log2",
-                  col = col_fun,
-                  show_row_names = FALSE,
-                  show_column_names = show_colnames_bool,
-                  cluster_rows = FALSE,
-                  cluster_columns = FALSE,
-                  column_order = col_order,
-                  column_split = col_split,
-                  width = col_size_coef * unit(width_base, "mm"),
-                  height = (3750 / 89) * unit(10, "mm"),
-                  column_title = sample_names,
-                  column_title_gp = gpar(col = c("#3155C3", "#3155C3", "#AF0525", "#AF0525"), fontsize = 90),
-                  column_gap = unit(8, "mm"),
-                  column_names_gp = gpar(fontsize = colnames_fontsize),
-                  show_row_dend = FALSE,
-                  show_heatmap_legend = FALSE,
-                  heatmap_legend_param = list(
-                    title = "log2",
-                    grid_width = 5 * unit(5, "mm"),
-                    legend_height = 77 * 1.3 * unit(5, "mm"),
-                    title_gp = gpar(fontsize = 10),
-                    labels_gp = gpar(fontsize = 40),
-                    legend_direction = "vertical"
-                  ),
-                  use_raster = TRUE
+      name = "log2",
+      col = col_fun,
+      show_row_names = FALSE,
+      show_column_names = show_colnames_bool,
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      column_order = col_order,
+      column_split = col_split,
+      width = col_size_coef * unit(width_base, "mm"),
+      height = (3750 / 89) * unit(10, "mm"),
+      column_title = sample_names,
+      column_title_gp = gpar(col = c("#3155C3", "#3155C3", "#AF0525", "#AF0525"), fontsize = 90),
+      column_gap = unit(8, "mm"),
+      column_names_gp = gpar(fontsize = colnames_fontsize),
+      show_row_dend = FALSE,
+      show_heatmap_legend = FALSE,
+      heatmap_legend_param = list(
+        title = "log2",
+        grid_width = 5 * unit(5, "mm"),
+        legend_height = 77 * 1.3 * unit(5, "mm"),
+        title_gp = gpar(fontsize = 10),
+        labels_gp = gpar(fontsize = 40),
+        legend_direction = "vertical"
+      ),
+      use_raster = TRUE
     )
     set.seed(random_seed)
     size <- calc_ht_size1(ht, unit = "inch", show_annotation_legend = FALSE)
