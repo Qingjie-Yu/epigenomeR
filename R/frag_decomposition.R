@@ -224,7 +224,7 @@ frag_decomposition <- function(file_path, out_dir, detect_valley = FALSE,
     cat("  File format: BAM (paired-end alignment)\n")
     frags_list <- BiocParallel::bplapply(file_path, function(bam_path) {
       ga <- GenomicAlignments::readGAlignmentPairs(bam_path)
-      len <- abs(GenomicAlignments::width(ga))  # Insert size
+      len <- GenomicRanges::width(GenomicRanges::granges(ga))
       as.integer(len)
     }, BPPARAM = BPPARAM)
     

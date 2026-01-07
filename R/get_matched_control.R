@@ -24,7 +24,7 @@
 
 get_nearest_gene <- function(query_gr, genes_gr) {
     suppressPackageStartupMessages({
-        library(dplyr, quietly = TRUE)
+        library(dplyr)
     })
 
     query_mid <- resize(query_gr, width = 1, fix = "center")
@@ -46,10 +46,11 @@ get_nearest_gene <- function(query_gr, genes_gr) {
             stringsAsFactors = FALSE
         )
 
-        best_overlaps <- overlap_df %>% 
-            dplyr::group_by(query_idx) %>% 
-            dplyr::slice_min(gene_width, n = 1, with_ties = FALSE) %>%
+        best_overlaps <- overlap_df |> 
+            dplyr::group_by(query_idx) |> 
+            dplyr::slice_min(gene_width, n = 1, with_ties = FALSE) |>
             dplyr::ungroup()
+        best_overlaps <- as.data.frame(best_overlaps)
         
         for (i in seq_len(nrow(best_overlaps))) {
             q_idx <- best_overlaps$query_idx[i]
@@ -93,11 +94,11 @@ get_nearest_gene <- function(query_gr, genes_gr) {
                     gene_width = width(chr_genes[subjectHits(nearest_info)])
                 )
                 
-                best_matches <- dist_df %>%
-                    dplyr::group_by(q_local_idx) %>%
-                    dplyr::filter(distance == min(distance)) %>%
-                    dplyr::slice_min(gene_width, n = 1, with_ties = FALSE) %>%
-                    dplyr::ungroup()
+                best_matches <- dist_df |> 
+                    dplyr::group_by(q_local_idx) |> 
+                    dplyr::filter(distance == min(distance)) |> 
+                    dplyr::slice_min(gene_width, n = 1, with_ties = FALSE)
+                best_matches <- as.data.frame(best_matches)
                 
                 for (i in seq_len(nrow(best_matches))) {
                     q_local_idx <- best_matches$q_local_idx[i]
