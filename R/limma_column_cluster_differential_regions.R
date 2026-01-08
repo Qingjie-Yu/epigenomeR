@@ -15,7 +15,13 @@
 #            mean_per_thres_list: Vector of mean expression percentile thresholds for filtering (default: c(0.25))
 #            fdr_thres_list: Vector of FDR thresholds for significance calling (default: c(0.25))
 # Output: Saves differential analysis results, filtered count matrices, and significant regions for each cluster and threshold combination
-limma_column_cluster_differential_regions <- function(sample_names, case_num, control_num, wgc_file_path, sig_result_dir, col_cluster_file = NULL, normalization_factor = 1E6, lowess_span = 0.5, l2fc_thres = 0.5, mean_per_thres_list = c(0.25), fdr_thres_list = c(0.25), pseudocount_for_log = 1) { # cluster
+
+differential_regions_by_cluster <- function(cm_path, conditions, col_cluster_file, out_dir = "./", cpm_scale = 1E6, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25, log_pseudocount = 1) {
+  # Placeholder function definition
+  # Actual implementation would go here
+}
+
+differential_regions_by_cluster <- function(sample_names, case_num, control_num, wgc_file_path, sig_result_dir, col_cluster_file = NULL, normalization_factor = 1E6, lowess_span = 0.5, l2fc_thres = 0.5, mean_per_thres_list = c(0.25), fdr_thres_list = c(0.25), pseudocount_for_log = 1) { # cluster
   dir.create(sig_result_dir, recursive = TRUE, showWarnings = FALSE)
   if (case_num < 2 || control_num < 2) {
     stop("Each condition must have at least 2 replicates.")
