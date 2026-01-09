@@ -183,7 +183,7 @@ frag_hist <- function(frags_list, out_dir, detect_valley = FALSE, dens_reso = 2^
 #            valley1_range: Search range for first valley (default: c(73, 221) bp)
 #            valley2_range: Search range for second valley (default: c(222, 368) bp)
 # Output: Generates fragment length histogram PDF and optionally per-pair decomposition TSV; all files saved to out_dir
-frag_decomposition <- function(file_path, out_dir, detect_valley = FALSE, dens_reso = 2^15, dens_kernel = "gaussian", valley1_range = c(73, 221), valley2_range = c(222, 368)) {
+frag_decomposition <- function(file_path, out_dir = "./", detect_valley = FALSE, dens_reso = 2^15, dens_kernel = "gaussian", valley1_range = c(73, 221), valley2_range = c(222, 368)) {
   suppressPackageStartupMessages({
     library(GenomicAlignments)
     library(BiocParallel)

@@ -94,15 +94,15 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
 
   # load row cluster info
   row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
-  row_cluster <- row_cluster[row_cluster$feature %in% rownames(mat), ]
-  row_order <- row_cluster$feature
-  row_split <- row_cluster$label
+  row_cluster <- row_cluster[row_cluster$region %in% rownames(mat), ]
+  row_order <- row_cluster$region
+  row_split <- row_cluster$cluster
 
   # load col cluster info
   col_cluster <- read.table(col_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
-  col_cluster <- col_cluster[col_cluster$feature %in% colnames(mat), ]
-  col_order <- col_cluster$feature
-  col_split <- as.numeric(factor(col_cluster$label))
+  col_cluster <- col_cluster[col_cluster$pair %in% colnames(mat), ]
+  col_order <- col_cluster$pair
+  col_split <- as.numeric(factor(col_cluster$cluster))
 
   mat <- mat[row_order, col_order]
   if (is.null(lower_range) || lower_range == "") {

@@ -16,7 +16,7 @@
 #
 # Output: Saves transformed count matrix as .feather file with "_transformed" suffix.  Returns the full output file path (character).
 
-apply_transformations <- function(cm_path, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), out_dir, save_each_step = FALSE) {
+apply_transformations <- function(cm_path, out_dir = "./", transformations = c("remove0", "libnorm", "log2p1", "qnorm"), save_each_step = FALSE) {
   suppressPackageStartupMessages({
     library(arrow)
     library(tibble)

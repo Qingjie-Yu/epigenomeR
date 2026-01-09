@@ -41,14 +41,14 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   col_num <- result$col_num
 
   df_row <- data.frame(
-    feature = names(row_letter),
-    label = unname(row_letter),
+    region = names(row_letter),
+    cluster = unname(row_letter),
     stringsAsFactors = FALSE
   )
 
   df_col <- data.frame(
-    feature = names(col_num),
-    label = unname(col_num),
+    pair = names(col_num),
+    cluster = unname(col_num),
     stringsAsFactors = FALSE
   )
 

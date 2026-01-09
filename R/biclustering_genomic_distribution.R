@@ -27,10 +27,10 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
 
   # Read row cluster file and convert to GRangesList
   row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-  if (!all(c("feature", "label") %in% colnames(row_cluster))) {
-    stop("Input file must contain 'feature' and 'label' columns")
+  if (!all(c("region", "cluster") %in% colnames(row_cluster))) {
+    stop("Input file must contain 'region' and 'cluster' columns")
   }
-  pos_df <- do.call(rbind, strsplit(row_cluster$feature, "_"))
+  pos_df <- do.call(rbind, strsplit(row_cluster$region, "_"))
   colnames(pos_df) <- c("seqnames", "start", "end")
   row_cluster <- cbind(pos_df, row_cluster)
   row_gr <- makeGRangesFromDataFrame(
@@ -40,7 +40,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
     end.field = "end",
     keep.extra.columns = TRUE
   )
-  row_grl <- split(row_gr, row_gr$label)
+  row_grl <- split(row_gr, row_gr$cluster)
   message("Loaded ", length(row_gr), " regions across ", length(row_grl), " clusters")
   message("Clusters: ", paste(names(row_grl), collapse = ", "))
 

@@ -7,7 +7,7 @@
 # Parameters:
 #   row_cluster_file_path:
 #     Path to a tab-delimited file with clustered regions.
-#     Required columns: 'feature' (format: chr_start_end), 'label' (cluster assignment).
+#     Required columns: 'region' (format: chr_start_end), 'cluster' (cluster assignment).
 #     Example: chr1_1000_2000 \t ClusterA
 #   out_dir:
 #     Output directory for all results. Created if doesn't exist. Default: "./"
@@ -70,12 +70,12 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
 
   # Read row cluster file and convert to GRanges
   row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t")
-  pos_df <- do.call(rbind, (strsplit(row_cluster$feature, "_")))
+  pos_df <- do.call(rbind, (strsplit(row_cluster$region, "_")))
   colnames(pos_df) <- c("seqnames", "start", "end")
   row_cluster <- cbind(pos_df, row_cluster)
   row_gr <- makeGRangesFromDataFrame(row_cluster, seqnames.field = "seqnames", start.field = "start", end.field = "end", keep.extra.columns = TRUE)
   style <- seqlevelsStyle(row_gr)[1]
-  row_grl <- split(row_gr, row_gr$label)
+  row_grl <- split(row_gr, row_gr$cluster)
 
   # Generate matched control regions
   cat("\n", strrep("=", 40), "\n", sep = "")

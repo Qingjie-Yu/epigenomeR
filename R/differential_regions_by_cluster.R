@@ -1,3 +1,50 @@
+
+
+differential_regions_by_cluster <- function(col_cluster_file_path, cm_path, conditions, sample_names = NULL, out_dir = "./", cpm_scale = 1E6, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25, log_pseudocount = 1) {
+  # Load libraries
+  suppressPackageStartupMessages({
+    library(arrow)
+    library(tibble)
+    library(glue)
+    library(latex2exp)
+    library(edgeR)
+    library(matrixStats)
+    library(limma)
+  })
+
+  if (length(cm_path) != length(conditions)) {
+    stop("cm_path and conditions must have the same length.")
+  }
+
+  cond_table <- table(conditions)
+  if (any(cond_table < 2)) {
+    stop(paste0("Each condition must have at least 2 replicates. Failed for: ", paste(names(cond_table)[cond_table < 2], collapse = ", ")))
+  }
+
+  # Reorder by conditions
+  ord <- order(conditions)
+  cm_path <- cm_path[ord]
+  conditions <- conditions[ord]
+
+  if (is.null(sample_names)) {
+    sample_names <- paste0(conditions, ave(seq_along(conditions), conditions, FUN = seq_along))
+  } else {
+    if (length(sample_names) != length(conditions)) {
+      stop("Length of sample_names must equal length of conditions.")
+    }
+    if (anyDuplicated(sample_names)) {
+      stop("sample_names must be unique.")
+    }
+    sample_names <- sample_names[ord]
+  }
+
+
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+}
+
 # Differential Analysis
 # differential -1
 # two condition, 4 columns
@@ -16,31 +63,8 @@
 #            fdr_thres_list: Vector of FDR thresholds for significance calling (default: c(0.25))
 # Output: Saves differential analysis results, filtered count matrices, and significant regions for each cluster and threshold combination
 
-differential_regions_by_cluster <- function(cm_path, conditions, col_cluster_file, out_dir = "./", cpm_scale = 1E6, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25, log_pseudocount = 1) {
-  # Placeholder function definition
-  # Actual implementation would go here
-}
-
-differential_regions_by_cluster <- function(sample_names, case_num, control_num, wgc_file_path, sig_result_dir, col_cluster_file = NULL, normalization_factor = 1E6, lowess_span = 0.5, l2fc_thres = 0.5, mean_per_thres_list = c(0.25), fdr_thres_list = c(0.25), pseudocount_for_log = 1) { # cluster
-  dir.create(sig_result_dir, recursive = TRUE, showWarnings = FALSE)
-  if (case_num < 2 || control_num < 2) {
-    stop("Each condition must have at least 2 replicates.")
-  }
-  if (length(sample_names) != (case_num + control_num)) {
-    stop("Length of sample_names must equal case_num+control_num.")
-  }
-
-  # load libraries
-  suppressPackageStartupMessages({
-    library(arrow)
-    library(tibble)
-    library(glue)
-    library(latex2exp)
-    library(edgeR)
-    library(matrixStats)
-    library(limma)
-  })
-
+differential_regions_by_cluster <- function(sample_names, case_num, control_num, wgc_file_path, sig_result_dir, col_cluster_file = NULL, normalization_factor = 1E6, lowess_span = 0.5, l2fc_thres = 0.5, mean_per_thres_list = c(0.25), fdr_thres_list = c(0.25), pseudocount_for_log = 1) {
+  
   group1 <- sample_names[1:case_num]
   group2 <- sample_names[(case_num + 1):(case_num + control_num)]
   conditions <- c(rep("condition1", case_num), rep("condition2", control_num))
