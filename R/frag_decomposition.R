@@ -191,10 +191,6 @@ frag_decomposition <- function(file_path, out_dir = "./", detect_valley = FALSE,
   })
 
   # Input validation
-  if (length(file_path) == 0) {
-    stop("Error: 'file_path' is empty")
-  }
-
   if (!all(file.exists(file_path))) {
     missing_files <- file_path[!file.exists(file_path)]
     stop("Error: The following files do not exist:\n  ", paste(missing_files, collapse = "\n  "))
@@ -213,11 +209,11 @@ frag_decomposition <- function(file_path, out_dir = "./", detect_valley = FALSE,
   } else {
     BPPARAM <- BiocParallel::SerialParam()
   }
+
   # Determine file format and extract fragment lengths
   file_exts <- tools::file_ext(file_path)
 
   cat("\nReading fragment lengths from files...\n")
-
   if (all(file_exts == "bam")) {
     cat("  File format: BAM (paired-end alignment)\n")
     frags_list <- BiocParallel::bplapply(file_path, function(bam_path) {

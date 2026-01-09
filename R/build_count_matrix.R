@@ -14,14 +14,7 @@
 # Output: Writes a Feather file whose first column is 'pos' and remaining columns are fragment-overlap counts per BAM file. Returns the full output file path (character).
 
 build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, do_qc = FALSE, qc_percent = 0.25, force_chr_coord = FALSE) {
-  start_time <- Sys.time()
-
-  # Create folder
-  if (!dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
-  }
-
-  # initiate packages
+  # Load Libraries
   suppressPackageStartupMessages({
     library(R.utils)
     library(GenomicAlignments)
@@ -41,8 +34,24 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     library(rtracklayer)
   })
 
-  num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", unset = 1))
-  register(MulticoreParam(workers = num_cores))
+  # Set up parallel processing
+  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
+  cat(sprintf("Using %d CPU cores\n", n_cores))
+
+  if (n_cores > 1) {
+    if (.Platform$OS.type == "unix") {
+      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
+    } else {
+      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
+    }
+  } else {
+    BPPARAM <- BiocParallel::SerialParam()
+  }
+
+  # Create folder
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
 
   # Define Regions
   if (is.numeric(regions)) {
@@ -88,8 +97,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   bam_seqinfo <- Seqinfo(seqnames = names(bam_header[[1]]$targets), seqlengths = bam_header[[1]]$targets)
   bam_style <- seqlevelsStyle(bam_seqinfo)[1]
 
-  # Post: Use bplapply for parallel chromosome processing
-  #       Generate Count Matrix for each chr
+  # Generate Count Matrix for each chr
   # Process custom regions (no chromosome loop needed)
   if (use_custom_region) {
     # Handle CSV/GTF file
@@ -260,7 +268,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       binChriDataframe_final <- cbind(pos_df, tmp_wgc)
 
       return(binChriDataframe_final)
-    })
+    }, BPPARAM = BPPARAM)
 
     binChriDataframe_full <- as.data.frame(do.call(rbind, binChriDataframe_list))
   }
@@ -280,16 +288,8 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   }
 
   # Report
-  preprocess_time <- Sys.time()
-  preprocess_time_taken <- round(preprocess_time - start_time, 2)
-  cat("preprocess time taken: ", preprocess_time_taken, "\n")
-
   output_path <- file.path(out_dir, output_filename)
   write_feather(binChriDataframe_full, output_path)
-
-  saving_time <- Sys.time()
-  saving_time_taken <- round(saving_time - preprocess_time, 2)
-  cat("saving time original taken: ", saving_time_taken, "\n")
   cat("Successfully saved to: ", output_path, "\n")
   return(output_path)
 }
