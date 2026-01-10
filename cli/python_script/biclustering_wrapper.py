@@ -2,10 +2,10 @@ import os
 import subprocess
 from typing import Dict, Optional, List, Union
 from langchain.tools import tool
-# from .LogCapture import auto_log_capture
+from .LogCapture import auto_log_capture
 
 @tool
-# @auto_log_capture()
+@auto_log_capture()
 def biclustering_wrapper(
     cm_paths: Union[str, List[str]],
     sample: str,
