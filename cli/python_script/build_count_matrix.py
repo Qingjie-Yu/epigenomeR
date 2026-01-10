@@ -3,10 +3,10 @@ import shutil
 import subprocess
 from typing import Dict, Optional, List, Union
 from langchain.tools import tool
-# from .LogCapture import auto_log_capture
+from .LogCapture import auto_log_capture
 
 @tool
-# @auto_log_capture()
+@auto_log_capture()
 def build_count_matrix(
     bam_paths: Union[str, List[str]],
     sample: str,
