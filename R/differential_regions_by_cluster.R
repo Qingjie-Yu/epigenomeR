@@ -43,6 +43,74 @@ differential_regions_by_cluster <- function(col_cluster_file_path, cm_path, cond
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   }
 
+  # Read .feather file
+  cm_list <- lapply(cm_path, function(f) column_to_rownames(read_feather(f), var = "pos"))
+  names(cm_list) <- sample_names
+
+  # Check if all count matrices have the same row/col names
+  all_regions <- lapply(cm_list, rownames)
+  if (length(unique(sapply(all_regions, paste, collapse = "|"))) > 1) {
+    warning("Row names (pos) do not match across all count matrices. Taking intersection.")
+    common_regions <- Reduce(intersect, all_regions)
+    if (length(common_regions) == 0) {
+      stop("No common row names (pos) found across all count matrices.")
+    }
+    message(glue("Using {length(common_regions)} common rows out of {paste(sapply(all_regions, length), collapse = ', ')} rows in each file."))
+    cm_list <- lapply(cm_list, function(mat) mat[common_regions, , drop = FALSE])
+  }
+
+  all_pairs <- lapply(cm_list, colnames)
+  if (length(unique(sapply(all_pairs, paste, collapse = "|"))) > 1) {
+    warning("Column names (pairs) do not match across all count matrices. Taking intersection.")
+    common_pairs <- Reduce(intersect, all_pairs)
+    if (length(common_pairs) == 0) {
+      stop("No common column names found across all count matrices.")
+    }
+    message(glue("Using {length(common_pairs)} common columns out of {paste(sapply(all_pairs, length), collapse = ', ')} columns in each file."))
+    cm_list <- lapply(cm_list, function(mat) mat[, common_pairs, drop = FALSE])
+  }
+
+  cm_regions <- rownames(cm_list[[1]])
+  cm_pairs <- colnames(cm_list[[1]])
+
+  # Read column cluster file
+  col_cluster_table <- read.table(col_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
+  cluster_pairs <- col_cluster_table$pair
+  col_cluster_table <- col_cluster_table[col_cluster_table$pair %in% cm_pairs, ]
+
+  cm_not_in_cluster <- setdiff(cm_pairs, cluster_pairs)
+  cluster_not_in_cm <- setdiff(cluster_pairs, cm_pairs)
+  if (length(cm_not_in_cluster) > 0) {
+    warning("Count matrices contain ", length(cm_not_in_cluster), " column(s) not found in col_cluster_file")
+  }
+  if (length(cluster_not_in_cm) > 0) {
+    warning("col_cluster_file contains ", length(cluster_not_in_cm), " pair(s) not found in count matrices")
+  }
+
+  # Setup design matrix
+  conditions <- factor(conditions)
+  design <- model.matrix(~ 0 + conditions)
+  colnames(design) <- levels(conditions)
+  
+  # Generate all pairwise comparisons
+  cond_levels <- levels(conditions)
+  n_cond <- length(cond_levels)
+  comparisons <- list()
+
+  if (n_cond == 2) {
+    # For 2 conditions, just one comparison
+    comparisons[[1]] <- c(cond_levels[2], cond_levels[1])
+  } else {
+    # For >2 conditions, all pairwise comparisons
+    idx <- 1
+    for (i in 1:(n_cond - 1)) {
+      for (j in (i + 1):n_cond) {
+        comparisons[[idx]] <- c(cond_levels[j], cond_levels[i])
+        idx <- idx + 1
+      }
+    }
+  }
+
 }
 
 # Differential Analysis

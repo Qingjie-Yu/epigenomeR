@@ -32,7 +32,7 @@
 #   plot: Logical. Whether to generate diagnostic plots during filtering and biclustering steps. Default: TRUE
 
 
-biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 3, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
+biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, row_km = 15, col_km = 4, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
   # Step1: Merge all the count matrix files
   if (is.vector(cm_path) && length(cm_path) > 1) {
     cat("\n", strrep("=", 40), "\n", sep = "")

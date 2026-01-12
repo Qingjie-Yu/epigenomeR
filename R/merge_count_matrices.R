@@ -25,24 +25,24 @@ merge_count_matrices <- function(cm_path, out_dir = "./", check_consistency = TR
     # Find common positions
     all_pos <- lapply(all_dfs, function(df) df$pos)
     common_pos <- Reduce(intersect, all_pos)
-    message("Common positions: ", length(common_pos))
+    message("Common regions: ", length(common_pos))
     if (length(common_pos) == 0) {
-      stop("Error: No common positions found!")
+      stop("Error: No common regions found!")
     }
 
     # Find common columns
     all_colnames <- lapply(all_dfs, function(df) setdiff(names(df), "pos"))
     common_cols <- Reduce(intersect, all_colnames)
-    message("Common columns: ", length(common_cols))
+    message("Common pairs: ", length(common_cols))
     if (length(common_cols) == 0) {
-      stop("Error: No common sample columns found!")
+      stop("Error: No common pairs found!")
     }
 
     # Filter and align all dataframes
     aligned_dfs <- lapply(all_dfs, function(df) {
       df_filtered <- df[df$pos %in% common_pos, c("pos", common_cols), drop = FALSE]
       df_filtered <- df_filtered[match(common_pos, df_filtered$pos), ]
-      return(df_filtered)
+      df_filtered
     })
 
     # Sum all files
@@ -56,8 +56,8 @@ merge_count_matrices <- function(cm_path, out_dir = "./", check_consistency = TR
     # Get all unique positions and columns
     all_pos <- unique(unlist(lapply(all_dfs, function(df) df$pos)))
     all_cols <- unique(unlist(lapply(all_dfs, function(df) setdiff(names(df), "pos"))))
-    message("Total positions: ", length(all_pos))
-    message("Total columns: ", length(all_cols))
+    message("Total regions: ", length(all_pos))
+    message("Total pairs: ", length(all_cols))
 
     # Initialize result matrix with zeros
     merged_df <- data.frame(pos = all_pos, stringsAsFactors = FALSE)
@@ -78,7 +78,7 @@ merge_count_matrices <- function(cm_path, out_dir = "./", check_consistency = TR
 
   # Save
   output_path <- file.path(out_dir, "Count_Matrix_merged.feather")
-  message("\nSaving to: ", output_path)
   write_feather(merged_df, output_path)
+  message("\nMerged count matrix saved to: ", output_path)
   return(output_path)
 }
