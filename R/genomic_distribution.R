@@ -171,10 +171,18 @@ annotate_by_overlap <- function(queries, library, feature_col, mode = c("nearest
     }
     pct_vec
   }, BPPARAM = BPPARAM)
-
-  result_matrix <- do.call(rbind, result_list)
-  result_matrix[is.na(result_matrix)] <- 0
+  
+  n_queries <- length(result_list)
+  n_features <- length(result_list[[1]])
+  result_matrix <- matrix(
+    unlist(result_list, use.names = FALSE),
+    nrow = n_queries,
+    ncol = n_features,
+    byrow = TRUE
+  )
+  colnames(result_matrix) <- names(result_list[[1]])
   rownames(result_matrix) <- names(queries)
+  result_matrix[is.na(result_matrix)] <- 0
   
   result_df <- as.data.frame(result_matrix)
   return(result_df)

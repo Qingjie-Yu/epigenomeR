@@ -8,12 +8,10 @@
 #   out_dir  : Directory where the output Feather file will be written. Default "./".
 #   ref_genome: Reference genome used when regions is numeric. One of "hg38" or "mm10". Ignored when custom regions are provided.
 #   sample_name: Optional character. If provided, it is prepended to the output filename.
-#   do_qc     : Whether to perform quality control filtering on BAM files.
-#   qc_percent: Numeric in (0, 1); percentile threshold for filtering low-count BAM files. Default 0.25.
 #   force_chr_coord: When TRUE, region IDs ("pos" column) are always  "CHR_start_end", even if gene_id is available. When FALSE and a non-empty gene_id column exists, gene_id is used as the region identifier.
 # Output: Writes a Feather file whose first column is 'pos' and remaining columns are fragment-overlap counts per BAM file. Returns the full output file path (character).
 
-build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, do_qc = FALSE, qc_percent = 0.25, force_chr_coord = FALSE) {
+build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, force_chr_coord = FALSE) {
   # Load Libraries
   suppressPackageStartupMessages({
     library(R.utils)
@@ -80,20 +78,8 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     stop("Error: Custom regions must be provided. 'regions' argument is missing or invalid.")
   }
 
-  # qc
-  if (do_qc == TRUE) {
-    result <- qc(file_path = bam_path, filtered_percentile = qc_percent, save = FALSE)
-    vector_crf <- result$filtered_crf
-    bamFiles <- bam_path[tools::file_path_sans_ext(basename(bam_path)) %in% vector_crf]
-  } else {
-    bamFiles <- bam_path
-  }
-  if (length(bamFiles) == 0) {
-    stop("Error: Bam files missing.")
-  }
-
   # Detect chromosome naming style
-  bam_header <- scanBamHeader(bamFiles[1])
+  bam_header <- scanBamHeader(bam_path[1])
   bam_seqinfo <- Seqinfo(seqnames = names(bam_header[[1]]$targets), seqlengths = bam_header[[1]]$targets)
   bam_style <- seqlevelsStyle(bam_seqinfo)[1]
 
@@ -132,9 +118,9 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     }
 
     # Process BAM files for custom regions
-    for (k in seq_along(bamFiles)) {
-      bamFile <- bamFiles[k]
-      temp <- readGAlignmentPairs(bamFile)
+    for (k in seq_along(bam_path)) {
+      bam <- bam_path[k]
+      temp <- readGAlignmentPairs(bam)
       locus <- data.frame(
         first_start = start(temp@first),
         first_end = end(temp@first),
@@ -174,7 +160,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
         }
       }
 
-      bamName <- tools::file_path_sans_ext(basename(bamFile))
+      bamName <- tools::file_path_sans_ext(basename(bam))
       binChriDataframe[[bamName]] <- overlapCount
     }
     # Format output
@@ -214,10 +200,10 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       chr_df <- data.frame(CHR = names(chrSizei), stringsAsFactors = FALSE)
       binChriDataframe <- cbind(chr_df, binChriDataframe)
 
-      for (k in seq_along(bamFiles)) {
-        bamFile <- bamFiles[k]
+      for (k in seq_along(bam_path)) {
+        bam <- bam_path[k]
         param <- ScanBamParam(which = GRanges(chr_i, IRanges(1, chrSizei)))
-        temp <- readGAlignmentPairs(bamFile, param = param)
+        temp <- readGAlignmentPairs(bam, param = param)
         locus <- data.frame(
           first_start = start(temp@first),
           first_end = end(temp@first),
@@ -257,7 +243,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
           }
         }
 
-        bamName <- tools::file_path_sans_ext(basename(bamFile))
+        bamName <- tools::file_path_sans_ext(basename(bam))
         binChriDataframe[[bamName]] <- overlapCount
       }
 
@@ -270,7 +256,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       return(binChriDataframe_final)
     }, BPPARAM = BPPARAM)
 
-    binChriDataframe_full <- as.data.frame(do.call(rbind, binChriDataframe_list))
+    binChriDataframe_full <- as.data.frame(data.table::rbindlist(binChriDataframe_list))
   }
 
 

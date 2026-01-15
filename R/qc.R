@@ -90,7 +90,7 @@ qc <- function(file_path, out_dir = "./", filtered_percentile = 0.25, save = TRU
   if (length(counts) == 0) {
     stop("Error: No valid files were successfully processed")
   }
-  df <- do.call(rbind, counts)
+  df <- as.data.frame(data.table::rbindlist(counts))
   
   # Calculate threshold and filter
   threshold <- quantile(df$read_count, probs = filtered_percentile, type = 3)

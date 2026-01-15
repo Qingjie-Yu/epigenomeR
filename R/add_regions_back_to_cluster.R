@@ -114,7 +114,12 @@ add_regions_back_to_cluster <- function(orig_cm_path,
       return(cors)
     }, BPPARAM = BPPARAM)
 
-    cor_mat <- do.call(rbind, cor_list)
+    cor_mat <- matrix(
+      unlist(cor_list, use.names = FALSE),
+      nrow = n_regions,
+      ncol = nrow(cluster_means),
+      byrow = TRUE
+    )
     rownames(cor_mat) <- region_names
     colnames(cor_mat) <- rownames(cluster_means)
   }
