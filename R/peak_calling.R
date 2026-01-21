@@ -1,218 +1,254 @@
-# Extract contiguous non-zero coverage blocks from an Rle object, compute block-level AUC, and estimate local background signal using flanking regions.
-extract_signal_blocks <- function(cov, chr, chr_size) {
-  # Get run values and lengths from Rle
-  all_values <- runValue(cov)
-  all_lengths <- runLength(cov)
-  
-  # Calculate genomic coordinates
-  all_ends <- cumsum(all_lengths)
-  all_starts <- all_ends - all_lengths + 1
-  
-  # Filter out zero-coverage regions
-  keep <- all_values > 0
-  if (!any(keep)) return(NULL)
-  
-  values <- all_values[keep]
-  lengths <- all_lengths[keep]
-  starts <- all_starts[keep]
-  ends <- all_ends[keep]
-
+# Extract blocks for one chromosome from bedGraph intervals
+extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
   n <- length(values)
-  if (n == 0) return(NULL)
-  
-  # Initialize first block
-  blocks <- list()
-  current_block <- list(
-    chr = chr,
-    start = starts[1],
-    end = ends[1],
-    auc = values[1] * lengths[1]
+  if (n == 0L) return(NULL)
+
+  # Keep non-zero & non-NA
+  keep <- !is.na(values) & values > 0
+  if (!any(keep)) return(NULL)
+
+  starts0 <- as.integer(starts0[keep])
+  ends0   <- as.integer(ends0[keep])
+  values  <- as.numeric(values[keep])
+
+  # Clamp to [0, chr_size]
+  chr_size <- as.integer(chr_size)
+  starts0 <- pmax.int(0L, starts0)
+  ends0   <- pmin.int(chr_size, ends0)
+
+  len0 <- ends0 - starts0
+  keep2 <- len0 > 0L
+  if (!any(keep2)) return(NULL)
+
+  starts0 <- starts0[keep2]
+  ends0   <- ends0[keep2]
+  values  <- values[keep2]
+  len0    <- len0[keep2]
+
+  # Merge consecutive intervals into blocks: new block if current start != previous end
+  new_block <- starts0 != data.table::shift(ends0, fill = starts0[1L])
+  block_id <- cumsum(as.integer(new_block))
+
+  dt_tmp <- data.table::data.table(
+    block_id = block_id,
+    chromStart = starts0,
+    chromEnd   = ends0,
+    value      = values,
+    len        = len0
   )
-  
-  # Merge consecutive positions
-  if (n > 1) {
-    for (i in 2:n) {
-      # Check if consecutive (end+1 == next_start)
-      if (ends[i-1] + 1 == starts[i]) {
-        # Merge into current block
-        current_block$end <- ends[i]
-        current_block$auc <- current_block$auc + (values[i] * lengths[i])
-      } else {
-        # Save current block and start new one
-        blocks[[length(blocks) + 1]] <- current_block
-        current_block <- list(
-          chr = chr,
-          start = starts[i],
-          end = ends[i],
-          auc = values[i] * lengths[i]
-        )
-      }
-    }
+
+  blocks <- dt_tmp[, .(
+    chr    = chr,
+    start  = min(chromStart),
+    end    = max(chromEnd),
+    auc    = sum(value * len),
+    length = sum(len)
+  ), by = block_id]
+
+  # Background window definition (0-based)
+  blocks[, ext := as.integer(ceiling(4.5 * length))]
+  blocks[, `:=`(
+    up_start = pmax.int(0L, start - ext),
+    dn_end   = pmin.int(chr_size, end + ext)
+  )]
+
+  # Split assignment for robustness
+  blocks[, `:=`(
+    up_len = pmax.int(0L, start - up_start),
+    dn_len = pmax.int(0L, dn_end - end)
+  )]
+  blocks[, bg_length := length + up_len + dn_len]
+
+  # ---- IRanges overlap AUC ----
+  # Convert 0-based half-open [s0, e0) to IRanges 1-based inclusive [s0+1, e0]
+  subj_gr <- GenomicRanges::GRanges(
+    seqnames = chr,
+    ranges   = IRanges::IRanges(start = starts0 + 1L, end = ends0),
+    strand   = "*"
+  )
+  subj_val <- values
+
+  auc_for_queries <- function(q0_start, q0_end) {
+    out <- numeric(length(q0_start))
+    keepq <- q0_start < q0_end
+    if (!any(keepq)) return(out)
+
+    qry_gr <- GenomicRanges::GRanges(
+      seqnames = chr,
+      ranges   = IRanges::IRanges(start = q0_start[keepq] + 1L, end = q0_end[keepq]),
+      strand   = "*"
+    )
+
+    hits <- GenomicRanges::findOverlaps(qry_gr, subj_gr, ignore.strand = TRUE)
+    if (length(hits) == 0L) return(out)
+
+    qh <- S4Vectors::queryHits(hits)
+    sh <- S4Vectors::subjectHits(hits)
+
+    # compute overlap width in 1-based inclusive coords
+    inter <- IRanges::pintersect(GenomicRanges::ranges(qry_gr)[qh],
+                                GenomicRanges::ranges(subj_gr)[sh])
+    w <- IRanges::width(inter)
+
+    contrib <- w * subj_val[sh]
+
+    acc <- rowsum(contrib, group = qh, reorder = FALSE)
+    out_keep <- numeric(length(qry_gr))
+    out_keep[as.integer(rownames(acc))] <- acc[, 1L]
+
+    out[keepq] <- out_keep
+    out
   }
-  # Add last block
-  blocks[[length(blocks) + 1]] <- current_block
 
-  # Helper 1: overlap indexing
-  get_overlap_idx <- function(starts, ends, qstart, qend) {
-    if (qstart > qend) return(integer(0))
-    i1 <- findInterval(qstart - 1L, ends) + 1L
-    i2 <- findInterval(qend, starts)
-    if (i1 <= i2) i1:i2 else integer(0)
-  }
+  up_auc <- auc_for_queries(blocks$up_start, blocks$start)  # [up_start, start)
+  dn_auc <- auc_for_queries(blocks$end, blocks$dn_end)      # [end, dn_end)
+  blocks[, bg_auc := auc + up_auc + dn_auc]
 
-  # Helper 2: vectorized overlap AUC summation
-  sum_overlap_auc <- function(starts, ends, values, idx, qstart, qend) {
-    if (!length(idx)) return(0)
-    ov_start <- pmax.int(starts[idx], qstart)
-    ov_end   <- pmin.int(ends[idx], qend)
-    ov_len   <- ov_end - ov_start + 1L
-    ov_len[ov_len < 0L] <- 0L
-    sum(values[idx] * ov_len)
-  }
-
-  # Calculate background for each block
-  for (i in seq_along(blocks)) {
-    block <- blocks[[i]]
-    block_length <- block$end - block$start + 1
-    extend_length <- ceiling(4.5 * block_length)
-    
-    # Define flanking regions (before boundary checking)
-    up_start <- block$start - extend_length
-    up_end <- block$start - 1
-    down_start <- block$end + 1
-    down_end <- block$end + extend_length
-    
-    # Apply chromosome boundaries
-    up_start <- max(1, up_start)
-    up_end <- min(chr_size, up_end)
-    down_start <- max(1, down_start)  
-    down_end <- min(chr_size, down_end)
-
-    bg_auc <- block$auc  # Start with block's own AUC
-    
-    # Add upstream background (only if valid region exists)
-    if (up_end >= up_start) {
-      up_len <- up_end - up_start + 1
-      idx_up <- get_overlap_idx(all_starts, all_ends, up_start, up_end)
-      bg_auc <- bg_auc + sum_overlap_auc(all_starts, all_ends, all_values, idx_up, up_start, up_end)
-    } else {
-      up_len <- 0
-    }
-
-    # Add downstream background (only if valid region exists)
-    if (down_end >= down_start) {
-      down_len <- down_end - down_start + 1
-      idx_dn <- get_overlap_idx(all_starts, all_ends, down_start, down_end)
-      bg_auc <- bg_auc + sum_overlap_auc(all_starts, all_ends, all_values, idx_dn, down_start, down_end)
-    } else {
-      down_len <- 0
-    } 
-
-    blocks[[i]]$length <- block_length
-    blocks[[i]]$bg_auc <- bg_auc
-    blocks[[i]]$bg_length <- up_len + block_length + down_len
-  }
-  
-  # Convert to data.frame
-  data.table::rbindlist(blocks)
+  blocks[, c("ext", "up_start", "dn_end", "up_len", "dn_len") := NULL]
+  blocks[]
 }
 
-
-# Extract signal blocks from BAM files
-peak_calling  <- function(bam_path, out_dir = "./", ref_genome = "hg38", qvalue_cutoff = 0.05, fc_cutoff = 2) {
-  # Load Libraries
+# Extract signal blocks from BEDGRAPH files
+peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", qvalue_cutoff = 0.05, fc_cutoff = 2) {
   suppressPackageStartupMessages({
-    library(GenomicAlignments)
     library(GenomeInfoDb)
-    library(Rsamtools)
     library(BSgenome.Hsapiens.UCSC.hg38)
     library(BSgenome.Mmusculus.UCSC.mm10)
   })
 
-  # Create folder
-  if (!dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
-  }
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-  # Set up parallel processing
+  # Detect chromosome naming style from first file
+  dt_preview <- data.table::fread(bedgraph_path[[1]], header = FALSE, sep = "\t", nrows = 200, showProgress = FALSE)
+  bed_style <- if (any(grepl("^chr", dt_preview$V1))) "UCSC" else "NCBI"
+
+  # Get reference genome object and sizes
+  genome <- switch(
+    ref_genome,
+    "hg38" = BSgenome.Hsapiens.UCSC.hg38,
+    "mm10" = BSgenome.Mmusculus.UCSC.mm10,
+    stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
+  )
+  GenomeInfoDb::seqlevelsStyle(genome) <- bed_style
+  chr_names <- GenomeInfoDb::standardChromosomes(genome)
+  chr_names <- chr_names[!tolower(chr_names) %in% c("mt", "chrm", "m", "mito")]
+  chr_sizes <- GenomeInfoDb::seqlengths(genome)[chr_names]
+
+  # Parallel over files
   n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores\n", n_cores))
+  cat(sprintf("Using %d CPU cores (file-level parallel)\n", n_cores))
 
-  if (n_cores > 1) {
+  workers <- min(max(n_cores, 1L), length(bedgraph_path))
+  if (workers > 1L) {
     if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
+      BPPARAM <- BiocParallel::MulticoreParam(workers = workers)
     } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
+      BPPARAM <- BiocParallel::SnowParam(workers = workers)
     }
   } else {
     BPPARAM <- BiocParallel::SerialParam()
   }
 
-  # Detect chromosome naming style
-  bam_header <- scanBamHeader(bam_path[1])
-  bam_seqinfo <- Seqinfo(seqnames = names(bam_header[[1]]$targets), seqlengths = bam_header[[1]]$targets)
-  bam_style <- seqlevelsStyle(bam_seqinfo)[1]
-
-  # Get reference genome size
-  if (ref_genome == "hg38") {
-    genome <- BSgenome.Hsapiens.UCSC.hg38
-  } else if (ref_genome == "mm10") {
-    genome <- BSgenome.Mmusculus.UCSC.mm10
-  } else {
-    stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
+  is_integerish <- function(x, n_check = 200L, tol = 1e-6) {
+    n <- min(as.integer(n_check), length(x))
+    xx <- x[seq_len(n)]
+    all(abs(xx - round(xx)) < tol)
   }
-  seqlevelsStyle(genome) <- bam_style
-  chr_names <- GenomeInfoDb::standardChromosomes(genome)
-  chr_names <- chr_names[!tolower(chr_names) %in% c("mt", "chrm", "m", "mito")]
-  chr_sizes <- seqlengths(genome)[chr_names]
 
-  result_list <- lapply(bam_path, function(bam) {
-    header <- scanBamHeader(bam)[[1]]
-    chr_info <- header$targets
-    
-    # Extract signal blocks in parallel
-    blocks_list <- bplapply(chr_names, function(chr){
-      if (!chr %in% names(chr_info)) {
-        return(NULL)
-      }
-      param <- ScanBamParam(which = GRanges(chr, IRanges(1, chr_info[chr])))
-      reads <- readGAlignments(bam, param = param)
-      if (length(reads) == 0) return(NULL)
-      cov <- coverage(reads)[[chr]]
-      if (length(cov) == 0) return(NULL)
-      extract_signal_blocks(cov, chr, unname(chr_sizes[chr]))
-    }, BPPARAM = BPPARAM)
+  result_list <- BiocParallel::bplapply(bedgraph_path, function(bg) {
+    # Read bedGraph
+    dt_all <- data.table::fread(bg, header = FALSE, sep = "\t", select = 1:4, showProgress = FALSE)
+    if (ncol(dt_all) < 4) {
+      message("Skipping ", bg, ": invalid bedGraph format.")
+      return(NULL)
+    }
 
-    blocks_list <- blocks_list[!sapply(blocks_list, is.null)]
-    if (length(blocks_list) == 0) return(NULL)
+    dt_all <- dt_all[, 1:4]
+    data.table::setnames(dt_all, c("chrom", "chromStart", "chromEnd", "value"))
+    dt_all[, chromStart := as.integer(chromStart)]
+    dt_all[, chromEnd   := as.integer(chromEnd)]
+    dt_all[, value      := as.numeric(value)]
+
+    # Ensure grouped by chrom for run slicing
+    data.table::setorder(dt_all, chrom, chromStart, chromEnd)
+
+    # Build chrom run ranges once; no dt_chr subsetting
+    chrom_vec <- dt_all$chrom
+    run_id <- data.table::rleid(chrom_vec)
+    runs <- dt_all[, .(chrom = chrom[1L], i = .I[1L], j = .I[.N]), by = run_id]
+    runs <- runs[chrom %in% chr_names]
+    if (nrow(runs) == 0L) return(NULL)
+
+    starts_all <- dt_all$chromStart
+    ends_all   <- dt_all$chromEnd
+    values_all <- dt_all$value
+
+    blocks_list <- lapply(seq_len(nrow(runs)), function(k) {
+      chr <- runs$chrom[k]
+      chr_size <- unname(chr_sizes[chr])
+      if (is.na(chr_size) || chr_size <= 0) return(NULL)
+
+      i <- runs$i[k]
+      j <- runs$j[k]
+
+      extract_signal_blocks_vec(
+        starts0 = starts_all[i:j],
+        ends0   = ends_all[i:j],
+        values  = values_all[i:j],
+        chr     = chr,
+        chr_size = chr_size
+      )
+    })
+
+    blocks_list <- blocks_list[!vapply(blocks_list, is.null, logical(1))]
+    if (!length(blocks_list)) return(NULL)
+
     blocks <- data.table::rbindlist(blocks_list)
 
+    # FC
     blocks$fc <- blocks$auc * blocks$bg_length / (blocks$bg_auc * blocks$length)
-    blocks$p_value <- pbinom(
-      blocks$auc - 1, 
-      size = blocks$bg_auc, 
-      prob = blocks$length / blocks$bg_length, 
-      lower.tail = FALSE
-    )
-    blocks$q_value <- p.adjust(blocks$p_value, method = "BH")
-    blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
 
+    # P-value
+    if (is_integerish(blocks$auc) && is_integerish(blocks$bg_auc)) {
+      blocks$p_value <- stats::pbinom(
+        round(blocks$auc) - 1,
+        size = round(blocks$bg_auc),
+        prob = blocks$length / blocks$bg_length,
+        lower.tail = FALSE
+      )
+    } else {
+      k <- pmax(floor(blocks$auc), 0)
+      lambda <- (blocks$bg_auc / blocks$bg_length) * blocks$length
+      blocks$p_value <- stats::ppois(k - 1, lambda = lambda, lower.tail = FALSE)
+    }
+
+    # Q-value
+    blocks$q_value <- stats::p.adjust(blocks$p_value, method = "BH")
+
+    # Filter
+    blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
+    if (nrow(blocks) == 0L) return(NULL)
+
+    # Prepare BED6+3 output (0-based)
     blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
     blocks$qValue <- -log10(pmax(blocks$q_value, .Machine$double.xmin))
-    blocks$score <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
-    blocks$name <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
+    blocks$score  <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
+    blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
     blocks$strand <- "."
-    blocks$chromStart <- blocks$start - 1L
+    blocks$chromStart <- blocks$start
 
     bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue")]
     colnames(bed) <- c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue")
 
-    pair <- tools::file_path_sans_ext(basename(bam))
+    pair <- tools::file_path_sans_ext(basename(bg))
     output_file <- file.path(out_dir, paste0(pair, "_peaks.bed"))
-    write.table(bed, file = output_file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
-  })
+    utils::write.table(bed, file = output_file, sep = "\t", quote = FALSE,
+                       row.names = FALSE, col.names = TRUE)
 
-  names(result_list) <- tools::file_path_sans_ext(basename(bam_path))
-  result_list <- result_list[!sapply(result_list, is.null)]
+    output_file
+  }, BPPARAM = BPPARAM)
+
+  names(result_list) <- tools::file_path_sans_ext(basename(bedgraph_path))
+  result_list <- result_list[!vapply(result_list, is.null, logical(1))]
   invisible(result_list)
 }
