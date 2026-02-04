@@ -26,16 +26,7 @@ qc <- function(file_path, out_dir = "./", filtered_percentile = 0.25, save = TRU
   })
 
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
+  BPPARAM <- get_BPPARAM()
 
   # Validate file formats
   file_exts <- tools::file_ext(file_path)

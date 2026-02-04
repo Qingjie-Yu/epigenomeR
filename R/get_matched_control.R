@@ -268,18 +268,7 @@ control_regions_single <- function(query_gr, genes_gr, chr_sizes, n_rep = 1, reg
 
 get_matched_control <- function(query, ref_genome = "hg38", ref_source = "knownGene", style = NULL, n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores\n", n_cores))
-
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
+  BPPARAM <- get_BPPARAM()
 
   # Validate input type
   if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {

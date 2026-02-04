@@ -32,18 +32,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU core(s)\n", n_cores))
-  
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
+  BPPARAM <- get_BPPARAM()
 
   # Load data
   load_matrix <- function(path) {

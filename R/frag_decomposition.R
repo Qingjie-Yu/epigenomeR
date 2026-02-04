@@ -197,18 +197,7 @@ frag_decomposition <- function(file_path, out_dir = "./", detect_valley = FALSE,
   }
 
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores\n", n_cores))
-
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
+  BPPARAM <- get_BPPARAM()
 
   # Determine file format and extract fragment lengths
   file_exts <- tools::file_ext(file_path)

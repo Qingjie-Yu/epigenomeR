@@ -33,19 +33,8 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   })
 
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores\n", n_cores))
-
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
-
+  BPPARAM <- get_BPPARAM()
+  
   # Create folder
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE)

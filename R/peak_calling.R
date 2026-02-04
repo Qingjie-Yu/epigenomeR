@@ -135,20 +135,9 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", qva
   chr_sizes <- GenomeInfoDb::seqlengths(genome)[chr_names]
 
   # Parallel over files
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores (file-level parallel)\n", n_cores))
+  BPPARAM <- get_BPPARAM()
 
-  workers <- min(max(n_cores, 1L), length(bedgraph_path))
-  if (workers > 1L) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = workers)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = workers)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
-
+  # helper function
   is_integerish <- function(x, n_check = 200L, tol = 1e-6) {
     n <- min(as.integer(n_check), length(x))
     xx <- x[seq_len(n)]

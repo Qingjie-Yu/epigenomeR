@@ -492,19 +492,8 @@ genomic_distribution <- function(query, out_dir, distributions = c("genic", "ccr
   }
 
   # Set up parallel processing
-  n_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "1"))
-  cat(sprintf("Using %d CPU cores\n", n_cores))
-
-  if (n_cores > 1) {
-    if (.Platform$OS.type == "unix") {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      BPPARAM <- BiocParallel::SnowParam(workers = n_cores)
-    }
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-  }
-
+  BPPARAM <- get_BPPARAM()
+  
   # Perform selected distributions
   if ("genic" %in% distributions) {
     message("\n========== Running Genic annotation ==========")
