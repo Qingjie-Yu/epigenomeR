@@ -1,3 +1,23 @@
+# Perform model grid search
+# Post: Perform comprehensive grid search for Random Forest and Linear Regression models to predict gene expression.
+# Supported models:
+#   - "rf": Random Forest with extensive hyperparameter tuning (mtry, ntree, nodesize, maxnodes, replace, min_samples_split)
+#   - "lr": Linear Regression with default parameters
+#
+# Parameters:
+#   gene_select_path: Path to gene selection dictionary JSON file
+#   gene_select_name: Name of gene selection list to use from dictionary
+#   rna_path: Path to RNA-seq data CSV file
+#   model_design: Model design identifier for selecting appropriate cutoff threshold
+#   hiplex_data_path: Path to HiPlex count matrix (.feather file)
+#   filtered_target_pair_path: Path to JSON file containing feature names
+#   cutoff_path: Path to JSON file containing RNA-seq cutoff values per design
+#   GE_col_name: Column name in RNA-seq data containing gene expression values
+#   out_dir: Directory path for saving output files
+#   seed: Random seed for reproducibility. Default: 42
+#
+# Output: Saves grid search results as JSON file with model rankings and best parameters. 
+#         Returns list of trained models sorted by performance (negative RMSE).
 perform_model_gridsearch <- function(gene_select_path, gene_select_name, rna_path, model_design, hiplex_data_path, filtered_target_pair_path, cutoff_path, GE_col_name, out_dir, seed = 42) {
   suppressPackageStartupMessages({
     library(arrow)
