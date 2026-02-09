@@ -1,4 +1,35 @@
-apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc_dir_filename, features_path, rnaseq_cutoffs_path, model_params_file, out_dir, model_design = "rnaseq_vs_hiplex_rm_outlier_log", gene_select_name = "coding_all", random_seed = 42, frag_type = "mixed", n_cores = NULL, remove_TV = FALSE) {
+# Apply Partial Dependence and PDP Analysis
+# Post: Train Random Forest and Linear Regression models on RNA-seq and HiPlex weighted gene coverage data,
+#       then compute Partial Dependence Plots (PDP) and Individual Conditional Expectation (ICE) curves
+#       for feature importance analysis.
+# Supported models:
+#   - "rf": Random Forest with configurable hyperparameters (n_estimators, max_depth, min_samples_split)
+#   - "lr": Linear Regression with default parameters
+#
+# Parameters:
+#   gene_select_dir_filename: Path to gene selection dictionary JSON file
+#   gene_select_name: Name of gene selection list to use from dictionary. Default: "coding_all"
+#   rnaseq_dir_filename: Path to RNA-seq data CSV file
+#   model_design: Model design identifier for selecting appropriate cutoff threshold
+#   wgc_dir_filename: Path to weighted gene coverage matrix (.feather file)
+#   features_path: Path to JSON file containing feature names
+#   rnaseq_cutoffs_path: Path to JSON file containing RNA-seq cutoff values per design
+#   model_params_file: Path to JSON file containing model hyperparameters and best params
+#   out_dir: Directory path for saving output files
+#   random_seed: Random seed for reproducibility. Default: 42
+#   frag_type: Fragment type for analysis. Default: "mixed"
+#   n_cores: Number of cores for parallel processing. Default: NULL (uses 1 core)
+#   remove_TV: Whether to remove features prefixed with "T_" or "V_". Default: FALSE
+#   test_size: Proportion of data for test split. Default: 0.2
+#
+# Output: Saves to out_dir/<random_seed>/:
+#         - model_performance_results.csv: RMSE and Pearson^2 for each model
+#         - top_features.csv: Normalized feature importance from Random Forest
+#         - top_feature_importance.json: Ranked feature names
+#         - top_features_pdp.rds: PDP average, ICE individual curves, and grid values per feature
+#         - rnaseq_wgc_all_X.csv: Processed feature matrix used for training
+apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc_dir_filename, features_path, rnaseq_cutoffs_path, model_params_file, out_dir, model_design = "rnaseq_vs_hiplex_rm_outlier_log", gene_select_name = "coding_all", random_seed = 42, frag_type = "mixed", n_cores = NULL, remove_TV = FALSE, test_size = 0.2) {
+    # Load Libraries
     suppressPackageStartupMessages({
         library(arrow)
         library(caret)
@@ -12,14 +43,17 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
         library(ranger)
         library(parallel)
         library(doParallel)
+        library(foreach)
         library(pdp)  
     }) 
 
-    save_dir <- paste0(out_dir, "/", seed)
+    # Create Folder
+    save_dir <- paste0(out_dir, "/", random_seed)
     if (!dir.exists(save_dir)) {
         dir.create(save_dir, recursive = TRUE)
     }
 
+    # Detect Number of Cores Used
     if (is.null(n_cores)) {
         n_cores <- 1
         
@@ -79,7 +113,6 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
     # Split Train And Test Data
     set.seed(random_seed)
     n <- nrow(rnaseq_wgc)
-    test_size <- 0.2
     test_indices <- sample(1:n, size = floor(n * test_size), replace = FALSE)
     train_indices <- setdiff(1:n, test_indices)
 
@@ -199,8 +232,9 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
         all_models[["coding_all"]][[model_name]] <- model
     }
 
-    dim(rnaseq_wgc_all_X)
-    length(rnaseq_wgc_all_y)
+    cat("Training data dimensions:\n")
+    cat("  Features (X):", paste(dim(rnaseq_wgc_all_X), collapse = " x "), "\n")
+    cat("  Targets (y):", length(rnaseq_wgc_all_y), "\n")
 
     ## Begin Train
     results <- list()
@@ -226,6 +260,7 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
             rmse <- sqrt(mean((rnaseq_wgc_all_y - rnaseq_wgc_pred_y)^2))
             cor_val <- cor(rnaseq_wgc_all_y, rnaseq_wgc_pred_y)^2
             
+            cat("Model Name:\n")
             print(model_name)
             print(paste("Root Mean Squared Error:", rmse))
             print(paste("Pearson^2 for all data:", cor_val))
@@ -277,39 +312,94 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
     }
     head(target_pairs)
 
-    # Calculate PDP
-    for (target_pair in target_pairs) {
-        # PDP average
-        pdp_result <- partial(
-            object = model$model,
-            pred.var = target_pair,
-            train = rnaseq_wgc_all_X,
-            grid.resolution = 85
-        )
+    # Calculate PDP - Parallel
+    if (n_cores > 1 && length(target_pairs) > 1) {
+        cat("Computing PDP in parallel using", n_cores, "cores...\n")
         
-        # ICE (individual)
-        ice_result <- partial(
-            object = model$model,
-            pred.var = target_pair,
-            train = rnaseq_wgc_all_X,
-            grid.resolution = 85,
-            ice = TRUE
-        )
+        cl <- makeCluster(min(n_cores, length(target_pairs)))
+        registerDoParallel(cl)
         
-        grid_values <- unique(pdp_result[[target_pair]])
-        average_values <- pdp_result$yhat
+        clusterExport(cl, c("model", "rnaseq_wgc_all_X"), envir = environment())
         
-        # ICE Resuts 
-        n_grid <- length(grid_values)
-        n_samples <- nrow(rnaseq_wgc_all_X)
+        pdp_results_list <- foreach(
+            target_pair = target_pairs,
+            .packages = c("pdp", "ranger"),
+            .combine = 'c'
+        ) %dopar% {
+            
+            # PDP average
+            pdp_result <- partial(
+                object = model$model,
+                pred.var = target_pair,
+                train = rnaseq_wgc_all_X,
+                grid.resolution = 85
+            )
+            
+            # ICE (individual)
+            ice_result <- partial(
+                object = model$model,
+                pred.var = target_pair,
+                train = rnaseq_wgc_all_X,
+                grid.resolution = 85,
+                ice = TRUE
+            )
+            
+            grid_values <- unique(pdp_result[[target_pair]])
+            average_values <- pdp_result$yhat
+            
+            n_grid <- length(grid_values)
+            n_samples <- nrow(rnaseq_wgc_all_X)
+            
+            individual_matrix <- matrix(ice_result$yhat, nrow = n_samples, ncol = n_grid, byrow = TRUE)
+            
+            result <- list(
+                average = list(average_values),
+                individual = list(list(individual_matrix)),
+                grid_values = list(grid_values)
+            )
+            
+            setNames(list(result), target_pair)
+        }
         
-        individual_matrix <- matrix(ice_result$yhat, nrow = n_samples, ncol = n_grid, byrow = TRUE)
+        stopCluster(cl)
         
-        pdp_lines_result[[gene_select_name]][[target_pair]] <- list(
-            average = list(average_values),  
-            individual = list(list(individual_matrix)), 
-            grid_values = list(grid_values)
-        )
+        pdp_lines_result[[gene_select_name]] <- pdp_results_list
+        
+    } else {
+        # Loop Version
+        for (target_pair in target_pairs) {
+            # PDP average
+            pdp_result <- partial(
+                object = model$model,
+                pred.var = target_pair,
+                train = rnaseq_wgc_all_X,
+                grid.resolution = 85
+            )
+            
+            # ICE (individual)
+            ice_result <- partial(
+                object = model$model,
+                pred.var = target_pair,
+                train = rnaseq_wgc_all_X,
+                grid.resolution = 85,
+                ice = TRUE
+            )
+            
+            grid_values <- unique(pdp_result[[target_pair]])
+            average_values <- pdp_result$yhat
+            
+            # ICE Resuts 
+            n_grid <- length(grid_values)
+            n_samples <- nrow(rnaseq_wgc_all_X)
+            
+            individual_matrix <- matrix(ice_result$yhat, nrow = n_samples, ncol = n_grid, byrow = TRUE)
+            
+            pdp_lines_result[[gene_select_name]][[target_pair]] <- list(
+                average = list(average_values),  
+                individual = list(list(individual_matrix)), 
+                grid_values = list(grid_values)
+            )
+        }
     }
 
     saveRDS(pdp_lines_result, paste0(save_dir, "/top_features_pdp.rds"))
