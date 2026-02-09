@@ -143,44 +143,44 @@ apply_par_and_pdp <- function(gene_select_dir_filename, rnaseq_dir_filename, wgc
             feature_names = NULL,
             
             initialize = function(random_state = NULL) {
-            self$random_state <- random_state
+                self$random_state <- random_state
             },
             
             set_params = function(...) {
-            new_params <- list(...)
-            self$params <- c(self$params, new_params)
-            invisible(self)
+                new_params <- list(...)
+                self$params <- c(self$params, new_params)
+                invisible(self)
             },
             
             fit = function(X, y) {
-            self$feature_names <- colnames(X)
-            
-            # use ranger's x/y
-            ranger_params <- list(
-                x = as.data.frame(X),
-                y = y,
-                num.threads = parallel::detectCores() - 1,
-                seed = self$random_state,
-                importance = "impurity"  # sklearn's feature_importances_
-            )
-            
-            # save parameters
-            if (!is.null(self$params$n_estimators)) {
-                ranger_params$num.trees <- self$params$n_estimators
-            }
-            if (!is.null(self$params$max_depth)) {
-                ranger_params$max.depth <- self$params$max_depth
-            }
-            if (!is.null(self$params$min_samples_split)) {
-                ranger_params$min.node.size <- self$params$min_samples_split
-            }
-            
-            self$model <- do.call(ranger, ranger_params)
-            invisible(self)
+                self$feature_names <- colnames(X)
+                
+                # use ranger's x/y
+                ranger_params <- list(
+                    x = as.data.frame(X),
+                    y = y,
+                    num.threads = parallel::detectCores() - 1,
+                    seed = self$random_state,
+                    importance = "impurity"  # sklearn's feature_importances_
+                )
+                
+                # save parameters
+                if (!is.null(self$params$n_estimators)) {
+                    ranger_params$num.trees <- self$params$n_estimators
+                }
+                if (!is.null(self$params$max_depth)) {
+                    ranger_params$max.depth <- self$params$max_depth
+                }
+                if (!is.null(self$params$min_samples_split)) {
+                    ranger_params$min.node.size <- self$params$min_samples_split
+                }
+                
+                self$model <- do.call(ranger, ranger_params)
+                invisible(self)
             },
             
             predict = function(X) {
-            predict(self$model, as.data.frame(X))$predictions
+                predict(self$model, as.data.frame(X))$predictions
             }
         )
     )
