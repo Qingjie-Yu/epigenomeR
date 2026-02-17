@@ -22,6 +22,11 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bi
     library(arrow)
   })
 
+  # Create folder
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+  
   # Read mean-variance statistics (only needed columns)
   mav_stats <- arrow::read_feather(mav_stats_path,
     col_select = c("pos", "log2_mean", "log2_var", "hypervar")

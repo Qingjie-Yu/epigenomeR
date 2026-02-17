@@ -29,11 +29,22 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
     library(tools)
   })
 
+  # Create folder
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+
   # Load data
   if (!file.exists(transformed_cm_path)) {
     stop("Input file does not exist: ", transformed_cm_path)
   }
-  mat <- as.matrix(column_to_rownames(read_feather(transformed_cm_path), var = "pos"))
+
+  df <- arrow::read_feather(transformed_cm_path)
+  pos <- df$pos
+  df$pos <- NULL
+  mat <- as.matrix(df)
+  mode(mat) <- "numeric"
+
   region_mean <- rowMeans(mat)
   region_var <- rowVars(mat)
   data_fit <- data.frame(mean = region_mean, var = region_var)
@@ -59,7 +70,7 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
 
   # Save filtered count matrix
   result <- data.frame(
-    pos = rownames(mat),
+    pos = as.character(pos),
     mean = region_mean,
     var = region_var,
     var_expect = var_expected,
