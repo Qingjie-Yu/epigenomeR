@@ -17,6 +17,10 @@ merge_count_matrices <- function(cm_path, out_dir = "./", check_consistency = TR
     stop("No feather files provided")
   }
 
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  
   all_dfs <- lapply(seq_along(cm_path), function(i) {
     read_feather(cm_path[i])
   })
