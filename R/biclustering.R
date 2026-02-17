@@ -33,7 +33,12 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   if (is.null(cm_path) || length(cm_path) == 0) {
     stop("`count_matrix_file_path` is required", call. = FALSE)
   }
-  mat <- as.matrix(column_to_rownames(read_feather(cm_path), var = "pos"))
+  df <- arrow::read_feather(cm_path)
+  pos <- df$pos
+  df$pos <- NULL
+  mat <- as.matrix(df)
+  mode(mat) <- "numeric"
+  rownames(mat) <- as.character(pos)
 
   message("Performing bidirectional k-means clustering...")
   result <- bidirectional_kmeans_clustering(mat = mat, row_k = row_km, col_k = col_km, seed = seed)
@@ -59,7 +64,7 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   write.table(df_col, path2, sep = "\t", quote = FALSE, row.names = FALSE)
   message("Saved cluster assignments to:")
   message("  - row clusters: ", path1)
-  message("  - col clusters: ", path1)
+  message("  - col clusters: ", path2)
 
   if (plot) {
     message("Generating heatmap...")
