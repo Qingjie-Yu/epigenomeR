@@ -54,14 +54,14 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bi
 
   # Select top hypervariant regions from each bin
   selected_regions <- mav_filtered %>%
-    group_by(bin) %>%
-    slice_max(order_by = hypervar, n = n_per_bin, with_ties = FALSE) %>%
-    ungroup() %>%
-    select(-bin)
+    dplyr::group_by(bin) %>%
+    dplyr::slice_max(order_by = hypervar, n = n_per_bin, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(-bin)
 
   # Final filter: keep only highly expressed regions
   final_regions <- selected_regions %>%
-    filter(log2_mean >= mean_threshold)
+    dplyr::filter(log2_mean >= mean_threshold)
 
   message(
     "Final selected regions: ", nrow(final_regions), " (",
@@ -71,7 +71,7 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bi
   # Load count matrix and extract selected regions
   count_matrix <- arrow::read_feather(transformed_cm_path)
   selected_matrix <- count_matrix %>%
-    filter(pos %in% final_regions$pos)
+    dplyr::filter(pos %in% final_regions$pos)
 
   # Save filtered matrix
   input_name <- tools::file_path_sans_ext(basename(transformed_cm_path))
