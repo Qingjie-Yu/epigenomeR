@@ -117,12 +117,21 @@ frag_hist <- function(frags_list, out_dir, detect_valley = FALSE, dens_reso = 2^
   hist_path <- file.path(out_dir, "fragment_distribution.pdf")
   pdf(hist_path, width = 10, height = 6)
 
+  h <- hist(
+    frags_combined,
+    breaks = 160,
+    plot = FALSE
+  )
+
+  ymax <- max(h$counts) * 1.05
+
   hist(
     frags_combined,
     breaks = 160,
     main = "Fragment Length Distribution",
     xlab = "Fragment Length (bp)",
-    ylab = "Frequency"
+    ylab = "Frequency",
+    ylim = c(0, ymax)
   )
 
   # Add valley markers if detected
