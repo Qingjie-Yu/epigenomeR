@@ -168,8 +168,8 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
       test <- cmp[1]
       ref  <- cmp[2]
 
-      contr <- makeContrasts(contr = paste0("`", test, "`-`", ref, "`"),
-                              levels = colnames(coef(fit)))
+      contr_str <- paste0("`", test, "`-`", ref, "`")
+      contr  <- makeContrasts(contrasts = contr_str, levels = colnames(coef(fit)))
       fit2  <- contrasts.fit(fit, contr)
       fit2  <- eBayes(fit2)
 
