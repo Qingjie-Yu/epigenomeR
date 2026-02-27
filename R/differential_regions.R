@@ -181,14 +181,15 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
       cmp_tag <- glue("{test}_vs_{ref}")
       prefix  <- glue("{cmp_tag}_cluster{cl}")
       # Save full table
-      tt_out     <- rownames_to_column(tt, var = "pos")
-      feather_all <- file.path(out_dir, glue("{prefix}_limma_all.feather"))
-      write_feather(tt_out, feather_all)
+      all_tsv <- file.path(out_dir, glue("{prefix}_limma_all.tsv"))
+      tt_out <- cbind(pos = rownames(tt), tt)
+      write.table(tt_out, all_tsv, sep = "\t", quote = FALSE, row.names = FALSE)
 
       # Save sig table
       sig_tsv <- file.path(out_dir, glue("{prefix}_limma_sig.tsv"))
       if (nrow(sig) > 0) {
-        write.table(sig, sig_tsv, sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
+        sig_out <- cbind(pos = rownames(sig), sig)
+        write.table(sig_out, sig_tsv, sep = "\t", quote = FALSE, row.names = FALSE)
       } else {
         writeLines("No significant regions under current thresholds.", sig_tsv)
       }
