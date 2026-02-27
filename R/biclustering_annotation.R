@@ -166,3 +166,34 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
     TFBS_enrichment_heatmap(tsv_path = tsv_paths, label = names(row_grl), out_dir = out_dir, top_n = plot_n_top)
   }
 }
+
+# Biclustering Pathway Annotation Pipeline
+#
+# Performs pathway enrichment analysis on biclustered genomic regions using rGREAT.
+#
+# Parameters:
+#   row_cluster_file_path:
+#     Path to a tab-delimited file with clustered regions.
+#     Required columns: 'region' (format: chr_start_end), 'cluster' (cluster assignment).
+#   out_dir:
+#     Output directory for results. Default: "./"
+#   ref_genome:
+#     Reference genome version. Default: "hg38"
+#     Supported: "hg38", "mm10"
+#   gene_sets:
+#     Gene set collection for enrichment testing. Default: "MSigDB:H"
+#   plot:
+#     Whether to generate a bubble plot. Default: TRUE
+biclustering_pathway_annotation <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", gene_sets = "MSigDB:H", plot = TRUE) {
+  # Validate parameters
+  if (!ref_genome %in% c("hg38", "mm10")) {
+    stop("ref_genome must be 'hg38' or 'mm10'")
+  }
+
+  # Read row cluster file and convert to GRangesList
+  row_grl <- extract_region_to_grl(row_cluster_file_path = row_cluster_file_path)
+
+  # Pathway annotation for each cluster
+  pathway_annotation(query = row_grl, out_dir = out_dir, ref_genome = ref_genome, gene_sets = gene_sets, plot = plot)
+  message("Pathway annotation complete")
+}
