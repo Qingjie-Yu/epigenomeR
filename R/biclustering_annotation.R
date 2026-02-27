@@ -15,7 +15,7 @@ extract_region_to_grl <- function(row_cluster_file_path, region_col = "region", 
     end.field = "end",
     keep.extra.columns = TRUE
   )
-  row_grl <- split(row_gr, row_gr[[cluster_col]])
+  row_grl <- split(row_gr, mcols(row_gr)[[cluster_col]])
   message("Loaded ", length(row_gr), " regions across ", length(row_grl), " clusters")
   row_grl
 }
