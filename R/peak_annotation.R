@@ -37,6 +37,13 @@ read_bed_to_grl <- function(bed_path, pattern = "_peaks\\.bed$") {
 #   plot:
 #     Whether to generate distribution plots. Default: TRUE
 peak_genomic_distribution <- function(bed_path, out_dir = "./", pattern = "_peaks\\.bed$", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+  suppressPackageStartupMessages({
+    library(rtracklayer)
+    library(GenomicRanges)
+    library(dplyr)
+    library(stringr)
+  })
+
   # Parameter validation
   if (!ref_genome %in% c("hg38", "mm10")) {
     stop("ref_genome must be 'hg38' or 'mm10'")
