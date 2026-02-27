@@ -64,6 +64,7 @@ Imports:
     rtracklayer,
     randomForest,
     ranger,
+    rGREAT,
     S4Vectors,
     scales,
     sfsmisc,

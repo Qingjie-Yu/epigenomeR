@@ -109,14 +109,19 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
 }
 
 # Extract signal blocks from BEDGRAPH files
-peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", qvalue_cutoff = 0.05, fc_cutoff = 2) {
+peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc_top_pct = 0.1, qvalue_cutoff = 0.05, fc_cutoff = 2) {
   suppressPackageStartupMessages({
     library(GenomeInfoDb)
     library(BSgenome.Hsapiens.UCSC.hg38)
     library(BSgenome.Mmusculus.UCSC.mm10)
   })
-
+  # Create output dictory
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  # Parameter Check
+  if (auc_top_pct <= 0 || auc_top_pct > 1) {
+    stop("auc_top_pct must be between 0 (exclusive) and 1 (inclusive).")
+  }
 
   # Detect chromosome naming style from first file
   dt_preview <- data.table::fread(bedgraph_path[[1]], header = FALSE, sep = "\t", nrows = 200, showProgress = FALSE)
@@ -193,6 +198,16 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", qva
     if (!length(blocks_list)) return(NULL)
 
     blocks <- data.table::rbindlist(blocks_list)
+
+    # AUC percentile pre-filter
+    if (auc_top_pct < 1.0) {
+      auc_thresh <- stats::quantile(blocks$auc, probs = 1 - auc_top_pct)
+      blocks <- blocks[blocks$auc >= auc_thresh, ]
+      if (nrow(blocks) == 0L) {
+        warning("No blocks remaining after AUC top ", auc_top_pct * 100, "% filter for file: ", bg)
+        return(NULL)
+      }
+    }
 
     # FC
     blocks$fc <- blocks$auc * blocks$bg_length / (blocks$bg_auc * blocks$length)
