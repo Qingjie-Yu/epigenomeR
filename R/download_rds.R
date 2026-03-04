@@ -13,7 +13,8 @@ download_rds <- function(rds_name, release_tag = "data-v1", force = TRUE) {
     "knownGene_mm10_processed.rds" = "c72f10ec5e21942df0a1af2e75b173d9f5a211b6dbf4dbd7208157acc5f25b58",
     "RepeatMasker_hg38_processed.rds" = "3993d786df82edef2a13eb70b10399e2c0725bdedc598a07260b7cbb23da291a",
     "RepeatMasker_mm10_processed.rds" = "8b9068c8d165f9a8651fb0f8e38684375f6e6b63224fc09ffab945f9e0f8e23d",
-    "TFBS_lib_hg38.rds" = "0f7f1d2407ad429a9617e11cf71654c7e2af4b2ca43a92ca8537f3cb99540d69"
+    "TFBS_lib_hg38.rds" = "0f7f1d2407ad429a9617e11cf71654c7e2af4b2ca43a92ca8537f3cb99540d69",
+    "TFBS_lib_mm10.rds" = "b36315592000f2bd3d7a102007dea1942d3b175b1d8fbdad2e607be132aeb203"
   )
 
   # Validate rds_name
