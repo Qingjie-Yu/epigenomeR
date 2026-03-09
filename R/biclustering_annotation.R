@@ -145,7 +145,7 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  Generating matched control regions")
   cat("\n", strrep("=", 40), "\n", sep = "")
-  control_gr <- get_matched_control(query = row_grl, ref_genome = ref_genome, ref_source = ref_source, style = style, n_rep = control_rep, regions = regions)
+  control_gr <- get_matched_control(query = row_grl, ref_genome = ref_genome, ref_source = ref_source, n_rep = control_rep, regions = regions)
   # Eliminating bias caused by overlap
   control_gr_reduced <- reduce(control_gr)
   control_gr <- resize(control_gr_reduced, width = regions, fix = "center")
