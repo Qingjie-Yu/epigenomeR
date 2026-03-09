@@ -157,7 +157,7 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  TFBS Enrichment Analysis")
   cat("\n", strrep("=", 40), "\n", sep = "")
-  tsv_paths <- TFBS_enrichment(query = row_grl, contro = control_gr, out_dir = out_dir, ref_genome = ref_genome, style = style)
+  tsv_paths <- TFBS_enrichment(query = row_grl, contro = control_gr, out_dir = out_dir, ref_genome = ref_genome)
 
   if (plot) {
     cat("\n", strrep("=", 40), "\n", sep = "")
