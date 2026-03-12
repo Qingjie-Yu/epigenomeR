@@ -169,17 +169,22 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   } else {
     # Get reference genome size
     if (ref_genome == "hg38") {
-      refGenome <- BSgenome.Hsapiens.UCSC.hg38
+      chrSizes0 <- seqlengths(BSgenome.Hsapiens.UCSC.hg38)
     } else if (ref_genome == "mm10") {
-      refGenome <- BSgenome.Mmusculus.UCSC.mm10
-    } else {
+      chrSizes0 <- seqlengths(BSgenome.Mmusculus.UCSC.mm10)
+    } else {s
       stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
     }
 
-    seqlevelsStyle(refGenome) <- bam_style
-    chr_list <- GenomeInfoDb::standardChromosomes(refGenome)
+    ref_seqinfo <- Seqinfo(
+      seqnames = names(chrSizes0),
+      seqlengths = chrSizes0
+    )
+    seqlevelsStyle(ref_seqinfo) <- bam_style
+
+    chr_list <- GenomeInfoDb::standardChromosomes(ref_seqinfo)
     chr_list <- chr_list[!tolower(chr_list) %in% c("mt", "chrm", "m", "mito")]
-    chrSizes <- seqlengths(refGenome)[chr_list]
+    chrSizes <- seqlengths(ref_seqinfo)[chr_list]
 
     # Process fixed bins with parallel chromosome processing
     binChriDataframe_list <- bplapply(chr_list, function(chr_i) {
