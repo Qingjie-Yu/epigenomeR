@@ -1,4 +1,4 @@
-get_BPPARAM <- function(verbose = TRUE, backend = c("snow", "multicore", "serial")) {
+get_BPPARAM <- function(verbose = TRUE, backend = c("snow", "multicore", "serial"), max_cores = 32) {
   backend <- match.arg(backend)
 
   slurm_cores <- suppressWarnings(
@@ -12,25 +12,29 @@ get_BPPARAM <- function(verbose = TRUE, backend = c("snow", "multicore", "serial
     n_cores <- slurm_cores
   }
 
-  n_cores <- max(1L, n_cores)
-
-  if (backend == "snow") {
+  n_cores <- min(max_cores, max(1L, n_cores))
+  
+  if (backend == "multicore") {
+    if (.Platform$OS.type != "unix") {
+      warning("MulticoreParam is only supported on Unix-like systems. Falling back to SnowParam.")
+      if (n_cores > 1) {
+        bp <- BiocParallel::SnowParam(workers = n_cores, type = "SOCK")
+      } else {
+        bp <- BiocParallel::SerialParam()
+      }
+    } else {
+      if (n_cores > 1) {
+        bp <- BiocParallel::MulticoreParam(workers = n_cores)
+      } else {
+        bp <- BiocParallel::SerialParam()
+      }
+    }
+  } else if (backend == "snow") {
     if (n_cores > 1) {
       bp <- BiocParallel::SnowParam(workers = n_cores, type = "SOCK")
     } else {
       bp <- BiocParallel::SerialParam()
     }
-
-  } else if (backend == "multicore") {
-    if (.Platform$OS.type != "unix") {
-      stop("MulticoreParam is only supported on unix-like systems.")
-    }
-    if (n_cores > 1) {
-      bp <- BiocParallel::MulticoreParam(workers = n_cores)
-    } else {
-      bp <- BiocParallel::SerialParam()
-    }
-
   } else {
     bp <- BiocParallel::SerialParam()
   }

@@ -268,7 +268,7 @@ control_regions_single <- function(query_gr, genes_gr, chr_sizes, n_rep = 1, reg
 
 get_matched_control <- function(query, ref_genome = "hg38", ref_source = "knownGene", style = NULL, n_rep = 1, regions = 800, seed = 42, length_tolerance = 0.2) {
   # Set up parallel processing
-  BPPARAM <- get_BPPARAM()
+  BPPARAM <- get_BPPARAM(verbose = FALSE, backend = "multicore")
 
   # Validate input type
   if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {

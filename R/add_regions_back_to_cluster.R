@@ -32,7 +32,7 @@ add_regions_back_to_cluster <- function(orig_cm_path,
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Set up parallel processing
-  BPPARAM <- get_BPPARAM()
+  BPPARAM <- get_BPPARAM(backend = "multicore")
 
   # Load data
   load_matrix <- function(path) {

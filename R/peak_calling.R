@@ -140,7 +140,7 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
   chr_sizes <- GenomeInfoDb::seqlengths(genome)[chr_names]
 
   # Parallel over files
-  BPPARAM <- get_BPPARAM()
+  BPPARAM <- get_BPPARAM(backend = "multicore")
 
   # helper function
   is_integerish <- function(x, n_check = 200L, tol = 1e-6) {

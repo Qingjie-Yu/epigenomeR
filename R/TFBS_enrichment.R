@@ -107,7 +107,7 @@ TFBS_enrichment <- function(query, control, regions = NULL, ref_genome = "hg38",
   })
 
   # Set up parallel processing
-  BPPARAM <- get_BPPARAM()
+  BPPARAM <- get_BPPARAM(backend = "multicore")
 
   # Parameter validation
   if (!inherits(query, "GRanges") && !inherits(query, "GRangesList")) {

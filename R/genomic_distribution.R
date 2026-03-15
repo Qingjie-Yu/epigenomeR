@@ -492,7 +492,7 @@ genomic_distribution <- function(query, out_dir, distributions = c("genic", "ccr
   }
 
   # Set up parallel processing
-  BPPARAM <- get_BPPARAM()
+  BPPARAM <- get_BPPARAM(backend = "multicore")
   
   # Perform selected distributions
   if ("genic" %in% distributions) {
