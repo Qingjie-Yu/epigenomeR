@@ -49,25 +49,25 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
   })
   names(cm_list) <- sample_names
 
+  harmonize_dimnames <- function(cm_list, dim = c("row", "col"), entity_label) {
+    dim <- match.arg(dim)
+    all_names <- lapply(cm_list, if (dim == "row") rownames else colnames)
+    common <- Reduce(intersect, all_names)
+    same   <- length(unique(vapply(all_names, function(x) paste(sort(x), collapse = "\r"), character(1)))) == 1
+    message("Common ", entity_label, ": ", length(common))
+    if (!same)    warning(glue("{entity_label} differ across samples. Using {length(common)} common {entity_label}."))
+    if (!length(common)) stop("No common ", entity_label, " found.")
+
+    lapply(cm_list, if (dim == "row") 
+      function(mat) mat[common, , drop = FALSE] else
+      function(mat) mat[, common, drop = FALSE]
+    )
+  }
   # Harmonize row names
-  all_regions <- lapply(cm_list, rownames)
-  if (length(unique(sapply(all_regions, paste, collapse = "|"))) > 1) {
-    warning("Row names (pos) do not match across all count matrices. Taking intersection.")
-    common_regions <- Reduce(intersect, all_regions)
-    if (length(common_regions) == 0) stop("No common row names (pos) found.")
-    cm_list <- lapply(cm_list, function(mat) mat[common_regions, , drop = FALSE])
-  }
-
-  # Harmonize col names
-  all_pairs <- lapply(cm_list, colnames)
-  if (length(unique(sapply(all_pairs, paste, collapse = "|"))) > 1) {
-    warning("Column names (pairs) do not match across all count matrices. Taking intersection.")
-    common_pairs <- Reduce(intersect, all_pairs)
-    if (length(common_pairs) == 0) stop("No common column names found.")
-    cm_list <- lapply(cm_list, function(mat) mat[, common_pairs, drop = FALSE])
-  }
-
+  cm_list <- harmonize_dimnames(cm_list, "row", "regions")
   cm_regions <- rownames(cm_list[[1]])
+  # Harmonize col names
+  cm_list <- harmonize_dimnames(cm_list, "col", "pairs")
   cm_pairs   <- colnames(cm_list[[1]])
 
   # Column cluster table
@@ -96,21 +96,14 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
             " column(s) not found in col_cluster_file (they will be ignored).")
 
   # Design matrix
-  conditions  <- factor(conditions)
-  design      <- model.matrix(~ 0 + conditions)
-  colnames(design) <- levels(conditions)
+  conditions_chr <- conditions
+  conditions_f   <- factor(conditions)
+  design         <- model.matrix(~ 0 + conditions_f)
+  colnames(design) <- levels(conditions_f)
 
   # All pairwise comparisons
-  cond_levels <- levels(conditions)
-  n_cond      <- length(cond_levels)
-  comparisons <- list()
-  idx <- 1
-  for (i in 1:(n_cond - 1)) {
-    for (j in (i + 1):n_cond) {
-      comparisons[[idx]] <- c(cond_levels[j], cond_levels[i])
-      idx <- idx + 1
-    }
-  }
+  cond_levels <- levels(conditions_f)
+  comparisons <- combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)
 
   # Main loop
   cluster_list  <- sort(unique(col_cluster_table$cluster))
@@ -131,7 +124,7 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
 
     # Pre-filter: at least one condition with >=2 non-zero AND >50% non-zero replicates
     keep_by_condition <- sapply(cond_levels, function(cond) {
-      cols   <- sample_names[conditions == cond]
+      cols   <- sample_names[conditions_chr == cond]
       nz_cnt <- rowSums(combined[, cols, drop = FALSE] != 0)
       (nz_cnt >= 2) & (nz_cnt > length(cols) * 0.5)
     })

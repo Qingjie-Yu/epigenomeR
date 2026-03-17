@@ -14,21 +14,12 @@
 build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, force_chr_coord = FALSE) {
   # Load Libraries
   suppressPackageStartupMessages({
-    library(R.utils)
     library(GenomicAlignments)
-    library(GenomicRanges)
-    library(GenomeInfoDb)
     library(Rsamtools)
-    library(Biostrings)
     library(BSgenome.Hsapiens.UCSC.hg38)
     library(BSgenome.Mmusculus.UCSC.mm10)
-    library(plyranges)
     library(arrow)
-    library(preprocessCore)
-    library(tibble)
     library(matrixStats)
-    library(BiocParallel)
-    library(data.table)
     library(rtracklayer)
   })
 
@@ -172,7 +163,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       chrSizes0 <- seqlengths(BSgenome.Hsapiens.UCSC.hg38)
     } else if (ref_genome == "mm10") {
       chrSizes0 <- seqlengths(BSgenome.Mmusculus.UCSC.mm10)
-    } else {s
+    } else {
       stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
     }
 

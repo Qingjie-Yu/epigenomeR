@@ -104,7 +104,7 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
   dn_auc <- auc_for_queries(blocks$end, blocks$dn_end)      # [end, dn_end)
   blocks[, bg_auc := auc + up_auc + dn_auc]
 
-  blocks[, c("ext", "up_start", "dn_end", "up_len", "dn_len") := NULL]
+  blocks[, c("ext", "up_start", "dn_end", "up_len", "dn_len", "block_id") := NULL]
   blocks[]
 }
 
@@ -115,7 +115,7 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
     library(BSgenome.Hsapiens.UCSC.hg38)
     library(BSgenome.Mmusculus.UCSC.mm10)
   })
-  # Create output dictory
+  # Create output directory
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Parameter Check
@@ -233,21 +233,22 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
     blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
     if (nrow(blocks) == 0L) return(NULL)
 
-    # Prepare BED6+3 output (0-based)
+    # Prepare narrowPeak output (0-based)
     blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
     blocks$qValue <- -log10(pmax(blocks$q_value, .Machine$double.xmin))
     blocks$score  <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
     blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
     blocks$strand <- "."
     blocks$chromStart <- blocks$start
+    blocks$peak   <- -1L
 
-    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue")]
-    colnames(bed) <- c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue")
+    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue", "peak")]
+    data.table::setnames(bed, c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue", "peak"))
 
     pair <- tools::file_path_sans_ext(basename(bg))
-    output_file <- file.path(out_dir, paste0(pair, "_peaks.bed"))
+    output_file <- file.path(out_dir, paste0(pair, "_peaks.narrowPeak"))
     utils::write.table(bed, file = output_file, sep = "\t", quote = FALSE,
-                       row.names = FALSE, col.names = TRUE)
+                       row.names = FALSE, col.names = FALSE)
 
     output_file
   }, BPPARAM = BPPARAM)

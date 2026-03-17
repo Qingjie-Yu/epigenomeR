@@ -1,7 +1,7 @@
-read_bed_to_grl <- function(bed_path, pattern = "_peaks\\.bed$") {
-  targets <- basename(bed_path) |> stringr::str_replace(pattern, "")
-  grl <- GRangesList(lapply(bed_path, function(f) {
-    df <- read.table(f, header = TRUE, sep = "\t", comment.char = "#")
+read_peak_to_grl <- function(peak_path, pattern = "_peaks\\.narrowPeak$") {
+  targets <- basename(peak_path) |> stringr::str_replace(pattern, "")
+  grl <- GRangesList(lapply(peak_path, function(f) {
+    df <- read.table(f, header = FALSE, sep = "\t", comment.char = "#")
     gr <- GRanges(
       seqnames = df[[1]],
       ranges = IRanges(start = df[[2]], end = df[[3]])
@@ -17,12 +17,12 @@ read_bed_to_grl <- function(bed_path, pattern = "_peaks\\.bed$") {
 # Annotates a set of peak BED files with distribution across genomic features.
 #
 # Parameters:
-#   bed_path:
-#     Path(s) to input BED files, or a directory containing BED files.
+#   peak_path:
+#     Path(s) to input PEAK files
 #   out_dir:
 #     Output directory for results. Default: "./"
 #   pattern:
-#     Regex pattern to match BED filenames (used for sample name extraction). Default: "_peaks\\.bed$"
+#     Regex pattern to match PEAK filenames (used for sample name extraction). Default: "_peaks\\.narrowPeak$"
 #   distributions:
 #     Annotation types to compute. Default: c("genic", "ccre")
 #     Valid options: "genic", "ccre", "chromhmm", "repeat"
@@ -36,7 +36,7 @@ read_bed_to_grl <- function(bed_path, pattern = "_peaks\\.bed$") {
 #     Options: "nearest", "weighted"
 #   plot:
 #     Whether to generate distribution plots. Default: TRUE
-peak_genomic_distribution <- function(bed_path, out_dir = "./", pattern = "_peaks\\.bed$", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+peak_genomic_distribution <- function(peak_path, out_dir = "./", pattern = "_peaks\\.narrowPeak$", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
   suppressPackageStartupMessages({
     library(rtracklayer)
     library(GenomicRanges)
@@ -70,8 +70,8 @@ peak_genomic_distribution <- function(bed_path, out_dir = "./", pattern = "_peak
     )
   }
 
-  # BED -> GRangesList
-  grl <- read_bed_to_grl(bed_path=bed_path, pattern=pattern)
+  # PEAK -> GRangesList
+  grl <- read_peak_to_grl(peak_path=peak_path, pattern=pattern)
 
   # Genomic distribution for each target
   genomic_distribution(query = grl, out_dir = out_dir, distributions = distributions, ref_genome = ref_genome, ref_source = ref_source, mode = mode, plot = plot)
@@ -80,20 +80,20 @@ peak_genomic_distribution <- function(bed_path, out_dir = "./", pattern = "_peak
 
 # Peak Pathway Annotation Pipeline
 #
-# Annotates a set of peak BED files with pathway and gene set enrichment.
+# Annotates a set of peak PEAK files with pathway and gene set enrichment.
 #
 # Parameters:
-#   bed_path:
-#     Path(s) to input BED files, or a directory containing BED files.
-#   out_dir:
+#   peak_path:
+#     Path(s) to input PEAK files
+#   out_dir
 #     Output directory for results. Default: "./"
 #   ref_genome:
 #     Reference genome version. Default: "hg38". Supported: "hg38", "mm10"
 #   pattern:
-#     Regex pattern to match BED filenames (used for sample name extraction). Default: "_peaks\\.bed$"
+#     Regex pattern to match PEAK filenames (used for sample name extraction). Default: "_peaks\\.narrowPeak$"
 #   plot:
 #     Whether to generate annotation plots. Default: TRUE
-peak_pathway_annotation <- function(bed_path, out_dir = "./", ref_genome = "hg38", pattern = "_peaks\\.bed$", plot = TRUE) {
+peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg38", pattern = "_peaks\\.narrowPeak$", plot = TRUE) {
   suppressPackageStartupMessages({
     library(rtracklayer)
     library(GenomicRanges)
@@ -107,8 +107,8 @@ peak_pathway_annotation <- function(bed_path, out_dir = "./", ref_genome = "hg38
     stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
   }
 
-  # BED -> GRangesList
-  grl <- read_bed_to_grl(bed_path=bed_path, pattern=pattern)
+  # PEAK -> GRangesList
+  grl <- read_peak_to_grl(peak_path=peak_path, pattern=pattern)
 
   # Pathway annotation for each target
   pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, plot = plot)
