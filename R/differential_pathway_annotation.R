@@ -27,8 +27,8 @@ dr_result_to_grl <- function(dr_result, out_dir = "./") {
 }
 
 
-differential_pathway_annotation <- function(dr_result, out_dir = "./", ref_genome = "hg38", gene_sets = "MSigDB:H", plot = TRUE) {
+differential_pathway_annotation <- function(dr_result, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE) {
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
   grl <- dr_result_to_grl(dr_result)
-  pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, gene_sets = gene_sets, plot = plot)
+  pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, msigdb_collection = msigdb_collection, plot = plot)
 }
