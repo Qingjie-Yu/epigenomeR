@@ -430,15 +430,5 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
   )
   sig_paths <- write_da_results(limma_result, combined, pair, out_dir = out_dir)
 
-  # Summary plot
-  cond_levels <- sort(unique(conditions))
-  for (cmp in combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)) {
-    cmp_tag     <- paste0(cmp[1], "_vs_", cmp[2])
-    summary_tsv <- file.path(out_dir, paste0(cmp_tag, "_summary.tsv"))
-    summary_pdf <- file.path(out_dir, paste0(cmp_tag, "_summary.pdf"))
-    if (file.exists(summary_tsv))
-      differential_summary_plot(summary_tsv, summary_pdf)
-  }
-
   invisible(sig_paths)
 }

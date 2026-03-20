@@ -30,6 +30,10 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
 
   # output directories
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  peak_set_dir <- file.path(out_dir, "peak_sets")
+  da_dir <- file.path(out_dir, "differential")
+  dir.create(peak_set_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(da_dir, recursive = TRUE, showWarnings = FALSE)
 
   # get cores
   BPPARAM <- get_BPPARAM()
@@ -47,7 +51,7 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
         peak_path   = peak_path,
         conditions  = conditions,
         pair        = pair,
-        out_dir     = out_dir,
+        out_dir     = peak_set_dir,
         window_size = window_size,
         min_support = min_support
       ),
@@ -67,7 +71,7 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
           regions       = regions_bed,
           pair          = pair,
           sample_names  = sample_names,
-          out_dir       = out_dir,
+          out_dir       = da_dir,
           min_support   = min_support,
           lfc_threshold = lfc_threshold,
           fdr_threshold = fdr_threshold,
