@@ -318,7 +318,7 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
 
 
 # ── Public: peak-based DA (one feather per sample per pair) ─────────────────
-differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names =NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
+differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names = NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
   suppressPackageStartupMessages({
     library(GenomicAlignments)
     library(Rsamtools)
