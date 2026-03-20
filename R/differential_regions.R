@@ -1,31 +1,202 @@
-differential_regions <- function(cm_path, conditions, sample_names = NULL, col_cluster_file_path = NULL, out_dir = "./", lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25, pseudocount = 1) {
+# ── Internal: two-round voom + limma ────────────────────────────────────────
+# combined   : region × sample integer matrix, colnames = sample_names
+# conditions : character vector, same order as colnames(combined)
+# returns    : named list, one entry per comparison + meta (n_before/n_nonzero/n_tested)
+run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0.25, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+  conditions_f <- factor(conditions)
+  cond_levels  <- levels(conditions_f)
+  design       <- model.matrix(~ 0 + conditions_f)
+  colnames(design) <- cond_levels
+
+  comparisons <- combn(cond_levels, 2,
+                       function(x) c(x[2], x[1]), simplify = FALSE)
+
+  # pre-filter: at least one condition with >= min_support non-zero replicates
+  keep_by_condition <- sapply(cond_levels, function(cond) {
+    cols   <- colnames(combined)[conditions == cond]
+    nz_cnt <- rowSums(combined[, cols, drop = FALSE] != 0)
+    nz_cnt >= min_support
+  })
+  if (is.vector(keep_by_condition))
+    keep_by_condition <- matrix(keep_by_condition, ncol = 1)
+  combined_f0 <- combined[rowSums(keep_by_condition) > 0, , drop = FALSE]
+  if (nrow(combined_f0) < 2)
+    return(list(skipped = "too few rows after non-zero filter"))
+
+  # first voom → mean expression filter
+  d0 <- edgeR::calcNormFactors(edgeR::DGEList(combined_f0))
+  y0 <- limma::voom(d0, design, plot = FALSE)
+  th <- quantile(rowMeans(y0$E), probs = mean_quantile, na.rm = TRUE)
+  combined_f1 <- combined_f0[rowMeans(y0$E) >= th, , drop = FALSE]
+  if (nrow(combined_f1) < 2)
+    return(list(skipped = paste0("too few rows after mean_quantile=", mean_quantile)))
+
+  # second voom → fit
+  d1  <- edgeR::calcNormFactors(edgeR::DGEList(combined_f1))
+  y1  <- limma::voom(d1, design, plot = FALSE)
+  fit <- limma::lmFit(y1, design)
+
+  results <- list(
+    n_before  = nrow(combined),
+    n_nonzero = nrow(combined_f0),
+    n_tested  = nrow(combined_f1)
+  )
+
+  for (cmp in comparisons) {
+    test <- cmp[1]; ref <- cmp[2]
+    contr <- limma::makeContrasts(
+      contrasts = paste0("`", test, "`-`", ref, "`"),
+      levels    = colnames(coef(fit))
+    )
+    fit2 <- limma::eBayes(limma::contrasts.fit(fit, contr))
+    tt   <- limma::topTable(fit2, sort.by = "P", n = Inf)
+    tt$P.Value[tt$P.Value       == 0] <- 1e-300
+    tt$adj.P.Val[tt$adj.P.Val   == 0] <- 1e-300
+
+    cmp_tag <- paste0(test, "_vs_", ref)
+    results[[cmp_tag]] <- list(
+      tt  = tt,
+      sig = tt[tt$adj.P.Val < fdr_threshold & abs(tt$logFC) > lfc_threshold, ,
+               drop = FALSE]
+    )
+  }
+  results
+}
+
+
+# ── Internal: write DAR results to disk ─────────────────────────────────────
+# limma_result : output of run_limma_voom()
+# combined     : original region × sample matrix (for log2 feather output)
+# group_name   : pair name or cluster name (used in filenames and summary)
+# out_dir      : passed through
+write_da_results <- function(limma_result, combined, group_name, out_dir = "./") {
+  if (!is.null(limma_result$skipped)) {
+    warning("Group ", group_name, " skipped: ", limma_result$skipped)
+    return(invisible(NULL))
+  }
+
+  meta_keys <- c("n_before", "n_nonzero", "n_tested", "skipped")
+  cmp_tags  <- setdiff(names(limma_result), meta_keys)
+  sig_paths <- list()
+
+  for (cmp_tag in cmp_tags) {
+    res    <- limma_result[[cmp_tag]]
+    tt     <- res$tt
+    sig    <- res$sig
+    prefix <- file.path(out_dir, glue::glue("{cmp_tag}_{group_name}"))
+
+    write.table(cbind(pos = rownames(tt), tt),
+                paste0(prefix, "_all.tsv"),
+                sep = "\t", quote = FALSE, row.names = FALSE)
+
+    # sig stats
+    if (nrow(sig) > 0) {
+      sig_path <- paste0(prefix, "_sig.tsv")
+      write.table(cbind(pos = rownames(sig), sig), sig_path,
+                  sep = "\t", quote = FALSE, row.names = FALSE)
+      sig_paths[[cmp_tag]] <- sig_path
+    }
+
+    summary_tsv <- file.path(out_dir, glue::glue("{cmp_tag}_summary.tsv"))
+    summary_row <- data.frame(
+      group                = group_name,
+      n_rows_before        = limma_result$n_before,
+      n_rows_after_nonzero = limma_result$n_nonzero,
+      n_rows_after_mean    = limma_result$n_tested,
+      n_sig                = nrow(sig),
+      n_up                 = sum(sig$logFC >  0),
+      n_down               = sum(sig$logFC < 0),
+      stringsAsFactors     = FALSE
+    )
+    write.table(summary_row, summary_tsv,
+                sep = "\t", quote = FALSE, row.names = FALSE,
+                col.names = !file.exists(summary_tsv),
+                append     = file.exists(summary_tsv))
+
+    message(sprintf("%-40s | tested: %d | sig: %d (up: %d, down: %d)",
+                    glue::glue("{cmp_tag} [{group_name}]"),
+                    limma_result$n_tested,
+                    nrow(sig), sum(sig$logFC > 0), sum(sig$logFC <= 0)))
+  }
+  invisible(sig_paths)
+}
+
+# ── Internal: generate summary plot ─────────────────────────────────────
+differential_summary_plot <- function(tsv, pdf) {
   suppressPackageStartupMessages({
-    library(arrow)
-    library(tibble)
-    library(glue)
-    library(edgeR)
-    library(matrixStats)
-    library(limma)
+    library(ggplot2)
+    library(data.table)
   })
 
-  if (length(cm_path) != length(conditions)) {
+  df <- data.table::fread(tsv)
+  if (!all(c("group", "n_up", "n_down") %in% colnames(df))) {
+    warning(glue::glue("Summary file missing required columns (group/n_up/n_down): {tsv}"))
+    return(invisible(NULL))
+  }
+  df$group  <- factor(df$group, levels = unique(df$group))
+  df$n_down <- -df$n_down
+
+  plot_df <- rbind(
+    data.frame(group = df$group, n = df$n_up,   direction = "Up-regulated"),
+    data.frame(group = df$group, n = df$n_down, direction = "Down-regulated")
+  )
+
+  y_max   <- max(abs(c(df$n_up, df$n_down)), na.rm = TRUE)
+  y_limit <- ceiling(y_max * 1.15)
+
+  p <- ggplot(plot_df, aes(x = group, y = n, fill = direction)) +
+    geom_col(width = 0.65) +
+    geom_hline(yintercept = 0, linewidth = 0.4, color = "grey40") +
+    scale_fill_manual(
+      values = c("Up-regulated" = "#E24B4A", "Down-regulated" = "#378ADD"),
+      name   = NULL
+    ) +
+    scale_y_continuous(
+      limits = c(-y_limit, y_limit),
+      labels = function(x) abs(x)
+    ) +
+    labs(
+      x = NULL,
+      y = "Number of DA regions"
+    ) +
+    theme_classic(base_size = 12) +
+    theme(
+      axis.line.x        = element_blank(),
+      axis.ticks.x       = element_blank(),
+      legend.position    = "top",
+      legend.key.size    = unit(0.4, "cm"),
+      panel.grid.major.y = element_line(color = "grey92", linewidth = 0.3)
+    )
+
+  ggsave(pdf, p,
+         width  = max(4, length(levels(df$group)) * 0.6 + 2),
+         height = 4,
+         dpi    = 150)
+  message(glue::glue("Saved summary plot: {pdf}"))
+}
+
+# ── Public: conventional DA (one feather per sample, columns = pairs) ───────
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, mean_quantile = 0.25, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+  suppressPackageStartupMessages({
+    library(arrow); library(tibble); library(glue)
+    library(edgeR); library(limma)
+  })
+
+  # input validation
+  if (length(cm_path) != length(conditions))
     stop("cm_path and conditions must have the same length.")
-  }
-
   cond_table <- table(conditions)
-  if (any(cond_table < 2)) {
-    stop(paste0(
-      "Each condition must have at least 2 replicates. Failed for: ",
-      paste(names(cond_table)[cond_table < 2], collapse = ", ")
-    ))
-  }
+  if (any(cond_table < 2))
+    stop("Each condition must have at least 2 replicates. Failed for: ",
+         paste(names(cond_table)[cond_table < 2], collapse = ", "))
 
-  ord <- order(conditions)
+  ord        <- order(conditions)
   cm_path    <- cm_path[ord]
   conditions <- conditions[ord]
 
   if (is.null(sample_names)) {
-    sample_names <- paste0(conditions, ave(seq_along(conditions), conditions, FUN = seq_along))
+    sample_names <- paste0(conditions,
+                           ave(seq_along(conditions), conditions, FUN = seq_along))
   } else {
     if (length(sample_names) != length(conditions))
       stop("Length of sample_names must equal length of conditions.")
@@ -34,188 +205,237 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, col_c
     sample_names <- sample_names[ord]
   }
 
-  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-  # Read feather files
+  # read feathers
   cm_list <- lapply(cm_path, function(f) {
-    df <- arrow::read_feather(f)
-    if (!("pos" %in% colnames(df))) stop("Missing required column 'pos' in: ", f)
-    pos    <- df$pos
-    df$pos <- NULL
-    mat    <- as.matrix(df)
-    mode(mat) <- "numeric"
+    df        <- arrow::read_feather(f)
+    if (!("pos" %in% colnames(df))) stop("Missing 'pos' column in: ", f)
+    pos       <- df$pos; df$pos <- NULL
+    mat       <- as.matrix(df); mode(mat) <- "numeric"
     rownames(mat) <- as.character(pos)
     mat
   })
   names(cm_list) <- sample_names
 
-  harmonize_dimnames <- function(cm_list, dim = c("row", "col"), entity_label) {
-    dim <- match.arg(dim)
-    all_names <- lapply(cm_list, if (dim == "row") rownames else colnames)
-    common <- Reduce(intersect, all_names)
-    same   <- length(unique(vapply(all_names, function(x) paste(sort(x), collapse = "\r"), character(1)))) == 1
-    message("Common ", entity_label, ": ", length(common))
-    if (!same)    warning(glue("{entity_label} differ across samples. Using {length(common)} common {entity_label}."))
-    if (!length(common)) stop("No common ", entity_label, " found.")
-
-    lapply(cm_list, if (dim == "row") 
-      function(mat) mat[common, , drop = FALSE] else
-      function(mat) mat[, common, drop = FALSE]
-    )
+  # harmonize regions and pairs
+  harmonize <- function(cm_list, dim, label) {
+    get_names <- if (dim == "row") rownames else colnames
+    common    <- Reduce(intersect, lapply(cm_list, get_names))
+    if (!length(common)) stop("No common ", label, " found.")
+    same <- length(unique(vapply(cm_list, function(x)
+      paste(sort(get_names(x)), collapse = "\r"), character(1)))) == 1
+    if (!same) warning(label, " differ across samples. Using ", length(common), " common ", label, ".")
+    message("Common ", label, ": ", length(common))
+    if (dim == "row") lapply(cm_list, function(m) m[common, , drop = FALSE])
+    else              lapply(cm_list, function(m) m[, common, drop = FALSE])
   }
-  # Harmonize row names
-  cm_list <- harmonize_dimnames(cm_list, "row", "regions")
-  cm_regions <- rownames(cm_list[[1]])
-  # Harmonize col names
-  cm_list <- harmonize_dimnames(cm_list, "col", "pairs")
-  cm_pairs   <- colnames(cm_list[[1]])
+  cm_list  <- harmonize(cm_list, "row", "regions")
+  cm_list  <- harmonize(cm_list, "col", "pairs")
+  cm_pairs <- colnames(cm_list[[1]])
 
-  # Column cluster table
+  # build group list
   if (is.null(col_cluster_file_path)) {
-    col_cluster_table <- data.frame(
-      pair    = cm_pairs,
-      cluster = seq_along(cm_pairs),
-      stringsAsFactors = FALSE
-    )
+    group_list  <- as.list(setNames(cm_pairs, cm_pairs))
+    use_cluster <- FALSE
   } else {
-    col_cluster_table <- read.table(col_cluster_file_path, header = TRUE,
-                                     sep = "\t", stringsAsFactors = FALSE)
-    if (!all(c("pair", "cluster") %in% colnames(col_cluster_table)))
+    ct <- read.table(col_cluster_file_path, header = TRUE,
+                     sep = "\t", stringsAsFactors = FALSE)
+    if (!all(c("pair", "cluster") %in% colnames(ct)))
       stop("col_cluster_file must contain columns: pair and cluster")
-    col_cluster_table <- col_cluster_table[col_cluster_table$pair %in% cm_pairs, , drop = FALSE]
-    if (nrow(col_cluster_table) == 0)
-      stop("After filtering by cm_pairs, col_cluster_table is empty.")
-    col_cluster_table$cluster <- as.integer(col_cluster_table$cluster)
-    if (any(is.na(col_cluster_table$cluster)))
-      stop("col_cluster_file: 'cluster' column contains non-integer / NA values.")
+    ct <- ct[ct$pair %in% cm_pairs, , drop = FALSE]
+    if (nrow(ct) == 0) stop("After filtering by cm_pairs, col_cluster_table is empty.")
+    not_found <- setdiff(cm_pairs, ct$pair)
+    if (length(not_found) > 0)
+      warning(length(not_found), " pair(s) not in col_cluster_file and will be ignored.")
+    group_list  <- split(ct$pair, factor(ct$cluster, levels = unique(ct$cluster)))
+    names(group_list) <- paste0("cluster", names(group_list))
+    use_cluster <- TRUE
   }
 
-  cm_not_in_cluster <- setdiff(cm_pairs, col_cluster_table$pair)
-  if (length(cm_not_in_cluster) > 0)
-    warning("Count matrices contain ", length(cm_not_in_cluster),
-            " column(s) not found in col_cluster_file (they will be ignored).")
+  # main loop
+  result <- list()
+  for (grp_name in names(group_list)) {
+    target_pairs <- intersect(group_list[[grp_name]], cm_pairs)
+    if (!length(target_pairs)) next
 
-  # Design matrix
-  conditions_chr <- conditions
-  conditions_f   <- factor(conditions)
-  design         <- model.matrix(~ 0 + conditions_f)
-  colnames(design) <- levels(conditions_f)
-
-  # All pairwise comparisons
-  cond_levels <- levels(conditions_f)
-  comparisons <- combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)
-
-  # Main loop
-  cluster_list  <- sort(unique(col_cluster_table$cluster))
-
-  for (cl in cluster_list) {
-
-    target_pairs <- intersect(col_cluster_table$pair[col_cluster_table$cluster == cl], cm_pairs)
-    if (length(target_pairs) == 0) next
-
-    # Aggregate counts across pairs in this cluster
-    combined <- do.call(cbind,
-      lapply(sample_names, function(s)
-        rowSums(cm_list[[s]][, target_pairs, drop = FALSE])
-      )
-    )
+    combined <- do.call(cbind, lapply(sample_names, function(s) {
+      if (use_cluster) rowSums(cm_list[[s]][, target_pairs, drop = FALSE])
+      else cm_list[[s]][, target_pairs, drop = FALSE]
+    }))
     colnames(combined) <- sample_names
-    rownames(combined) <- cm_regions
 
-    # Pre-filter: at least one condition with >=2 non-zero AND >50% non-zero replicates
-    keep_by_condition <- sapply(cond_levels, function(cond) {
-      cols   <- sample_names[conditions_chr == cond]
-      nz_cnt <- rowSums(combined[, cols, drop = FALSE] != 0)
-      (nz_cnt >= 2) & (nz_cnt > length(cols) * 0.5)
-    })
-    if (is.vector(keep_by_condition))
-      keep_by_condition <- matrix(keep_by_condition, ncol = 1)
-    keep_rows  <- rowSums(keep_by_condition) > 0
-    combined_f0 <- combined[keep_rows, , drop = FALSE]
-    if (nrow(combined_f0) < 2) {
-      warning(glue("Cluster {cl}: too few rows after non-zero filter; skipped.")) 
-      next
-    }
+    limma_result <- run_limma_voom(
+      combined, conditions,
+      min_support = min_support,
+      mean_quantile = mean_quantile,
+      lfc_threshold = lfc_threshold,
+      fdr_threshold = fdr_threshold
+    )
 
-    # First voom for mean-expression filter
-    d0 <- DGEList(combined_f0)
-    d0 <- calcNormFactors(d0)
-    y0 <- voom(d0, design, plot = FALSE)
-    mean_log2_cpm <- rowMeans(y0$E)
+    grp_result <- write_da_results(limma_result, combined, grp_name, out_dir = out_dir)
 
-    th          <- as.numeric(stats::quantile(mean_log2_cpm, probs = mean_quantile, na.rm = TRUE))
-    combined_f1 <- combined_f0[mean_log2_cpm >= th, , drop = FALSE]
-    if (nrow(combined_f1) < 2) {
-      warning(glue("Cluster {cl}: too few rows after mean_quantile={mean_quantile}; skipped."))
-      next
-    }
+    # write pair-level counts for sig regions
+    if (!is.null(grp_result)) {
+      for (cmp_tag in names(grp_result)) {
+        sig_regions <- rownames(limma_result[[cmp_tag]]$sig)
+        if (!length(sig_regions)) next
 
-    # Second voom on filtered matrix
-    d1  <- DGEList(combined_f1)
-    d1  <- calcNormFactors(d1)
-    y1  <- voom(d1, design, plot = FALSE)
-    fit <- lmFit(y1, design)
-
-    # Pairwise comparisons
-    for (cmp in comparisons) {
-      test <- cmp[1]
-      ref  <- cmp[2]
-
-      contr_str <- paste0("`", test, "`-`", ref, "`")
-      contr  <- makeContrasts(contrasts = contr_str, levels = colnames(coef(fit)))
-      fit2  <- contrasts.fit(fit, contr)
-      fit2  <- eBayes(fit2)
-
-      tt <- topTable(fit2, sort.by = "P", n = Inf)
-      tt$P.Value[tt$P.Value   == 0] <- 1e-300
-      tt$adj.P.Val[tt$adj.P.Val == 0] <- 1e-300
-
-      sig     <- tt[(tt$adj.P.Val < fdr_threshold) & (abs(tt$logFC) > lfc_threshold), , drop = FALSE]
-      cmp_tag <- glue("{test}_vs_{ref}")
-      prefix  <- glue("{cmp_tag}_cluster{cl}")
-      # Save full table
-      all_tsv <- file.path(out_dir, glue("{prefix}_limma_all.tsv"))
-      tt_out <- cbind(pos = rownames(tt), tt)
-      write.table(tt_out, all_tsv, sep = "\t", quote = FALSE, row.names = FALSE)
-
-      # Save sig table
-      sig_tsv <- file.path(out_dir, glue("{prefix}_limma_sig.tsv"))
-      if (nrow(sig) > 0) {
-        sig_out <- cbind(pos = rownames(sig), sig)
-        write.table(sig_out, sig_tsv, sep = "\t", quote = FALSE, row.names = FALSE)
-      } else {
-        writeLines("No significant regions under current thresholds.", sig_tsv)
-      }
-
-      # Save per-sample log2 matrix for sig regions
-      if (nrow(sig) > 0) {
-        sig_regions <- rownames(sig)
-        for (s in sample_names) {
-          m <- cm_list[[s]][sig_regions, target_pairs, drop = FALSE]
-          m <- log2(m + pseudocount)
-          m <- rownames_to_column(as.data.frame(m), var = "pos")
-          write_feather(m, file.path(out_dir, glue("{prefix}_{s}_log2.feather")))
+        if (use_cluster) {
+          # expand back to pair level: columns = sample:pair
+          counts_out <- do.call(cbind, lapply(sample_names, function(s) {
+            m <- cm_list[[s]][sig_regions, target_pairs, drop = FALSE]
+            colnames(m) <- paste0(s, ":", colnames(m))
+            m
+          }))
+        } else {
+          # single pair: columns = sample names
+          counts_out <- combined[sig_regions, , drop = FALSE]
         }
-      }
 
-      # Summary
-      summary_tsv <- file.path(out_dir, glue("{cmp_tag}_limma_summary.tsv"))
-      file_exists <- file.exists(summary_tsv)
-      summary_row <- data.frame(
-        cluster              = cl,
-        n_rows_before        = nrow(combined),
-        n_rows_after_nonzero = nrow(combined_f0),
-        n_rows_after_mean    = nrow(combined_f1),
-        n_sig                = nrow(sig),
-        n_up                 = nrow(sig[sig$logFC >  0, ]),
-        n_down               = nrow(sig[sig$logFC <= 0, ]),
-        stringsAsFactors     = FALSE
-      )
-      write.table(summary_row, summary_tsv,
-        sep = "\t", quote = FALSE, row.names = FALSE,
-        col.names = !file_exists, append = file_exists
-      )
-      message(glue("Cluster {cl} | {cmp_tag} | tested: {nrow(combined_f1)} | sig: {nrow(sig)} (up: {nrow(sig[sig$logFC > 0,])}, down: {nrow(sig[sig$logFC <= 0,])})"))
+        counts_path <- file.path(out_dir,glue("{cmp_tag}_{grp_name}_sig_counts.tsv"))
+        write.table(
+          cbind(pos = rownames(counts_out), as.data.frame(counts_out)),
+          counts_path, sep = "\t", quote = FALSE, row.names = FALSE
+        )
+        result[[grp_name]][[cmp_tag]] <- counts_path
+      }
     }
   }
+
+  # summary plots
+  cond_levels <- sort(unique(conditions))
+  for (cmp in combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)) {
+    cmp_tag     <- paste0(cmp[1], "_vs_", cmp[2])
+    summary_tsv <- file.path(out_dir, paste0(cmp_tag, "_summary.tsv"))
+    summary_pdf <- file.path(out_dir, paste0(cmp_tag, "_summary.pdf"))
+    if (file.exists(summary_tsv))
+      differential_summary_plot(summary_tsv, summary_pdf)
+  }
+
+  invisible(result)
+}
+
+
+# ── Public: peak-based DA (one feather per sample per pair) ─────────────────
+differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names =NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
+  suppressPackageStartupMessages({
+    library(GenomicAlignments)
+    library(Rsamtools)
+    library(matrixStats)
+    library(edgeR)
+    library(limma)
+  })
+
+  # Input validation 
+  if (length(bam_path) != length(conditions))
+    stop("bam_path and conditions must have the same length.")
+
+  cond_table <- table(conditions)
+  if (any(cond_table < 2))
+    stop("Each condition must have at least 2 replicates. Failed for: ",
+         paste(names(cond_table)[cond_table < 2], collapse = ", "))
+
+  if (!file.exists(regions))
+    stop("regions file not found: ", regions)
+
+  ord        <- order(conditions)
+  bam_path   <- bam_path[ord]
+  conditions <- conditions[ord]
+
+  if (is.null(sample_names)) {
+    sample_names <- paste0(conditions,
+                           ave(seq_along(conditions), conditions, FUN = seq_along))
+  } else {
+    if (length(sample_names) != length(conditions))
+      stop("Length of sample_names must equal length of conditions.")
+    if (anyDuplicated(sample_names))
+      stop("sample_names must be unique.")
+    sample_names <- sample_names[ord]
+  }
+
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  # Detect chromosome naming style from first BAM 
+  bam_header  <- Rsamtools::scanBamHeader(bam_path[1])
+  bam_seqinfo <- GenomeInfoDb::Seqinfo(
+    seqnames   = names(bam_header[[1]]$targets),
+    seqlengths = bam_header[[1]]$targets
+  )
+  bam_style <- GenomeInfoDb::seqlevelsStyle(bam_seqinfo)[1]
+
+  # Read BED regions 
+  bed_data <- read.table(regions, sep = "\t", stringsAsFactors = FALSE)
+  bin <- GenomicRanges::GRanges(
+    seqnames = bed_data$V1,
+    ranges   = IRanges::IRanges(start = bed_data$V2 + 1L, end = bed_data$V3)
+  )
+  GenomeInfoDb::seqlevelsStyle(bin) <- bam_style
+  region_ids <- paste0(bed_data$V1, "_", bed_data$V2, "_", bed_data$V3)
+
+  # Count fragments per BAM 
+  combined <- do.call(cbind, lapply(seq_along(bam_path), function(k) {
+    bam  <- bam_path[k]
+    temp <- GenomicAlignments::readGAlignmentPairs(
+      bam,
+      param = Rsamtools::ScanBamParam(which = bin)
+    )
+
+    overlapCount <- numeric(length(bin))
+    if (length(temp) == 0) return(overlapCount)
+
+    locus <- data.frame(
+      first_start = start(temp@first),
+      first_end   = end(temp@first),
+      last_start  = start(temp@last),
+      last_end    = end(temp@last)
+    )
+    frag_start <- matrixStats::rowMins(as.matrix(locus))
+    frag_end   <- matrixStats::rowMaxs(as.matrix(locus))
+    bamContent <- GenomicRanges::makeGRangesFromDataFrame(data.frame(
+      seqnames = as.vector(seqnames(temp)),
+      strand   = "*",
+      start    = frag_start,
+      end      = frag_end
+    ))
+
+    overlaps <- GenomicRanges::findOverlaps(bamContent, bin, ignore.strand = TRUE)
+    qh <- queryHits(overlaps)
+    sh <- subjectHits(overlaps)
+    if (!length(sh)) return(overlapCount)
+
+    overlap_lengths <- pmax(0,
+      pmin(end(bamContent)[qh],   end(bin)[sh]) -
+      pmax(start(bamContent)[qh], start(bin)[sh]) + 1
+    )
+    proportions <- overlap_lengths / (end(bamContent)[qh] - start(bamContent)[qh] + 1)
+    summed <- aggregate(proportions, by = list(bin_id = sh), FUN = sum)
+    overlapCount[summed$bin_id] <- summed$x
+    overlapCount
+  }))
+  rownames(combined) <- region_ids
+  colnames(combined) <- sample_names
+
+  # limma 
+  limma_result <- run_limma_voom(
+    combined,
+    conditions = conditions,
+    min_support = min_support,
+    mean_quantile = mean_quantile,
+    lfc_threshold = lfc_threshold,
+    fdr_threshold = fdr_threshold
+  )
+  sig_paths <- write_da_results(limma_result, combined, pair, out_dir = out_dir)
+
+  # Summary plot
+  cond_levels <- sort(unique(conditions))
+  for (cmp in combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)) {
+    cmp_tag     <- paste0(cmp[1], "_vs_", cmp[2])
+    summary_tsv <- file.path(out_dir, paste0(cmp_tag, "_summary.tsv"))
+    summary_pdf <- file.path(out_dir, paste0(cmp_tag, "_summary.pdf"))
+    if (file.exists(summary_tsv))
+      differential_summary_plot(summary_tsv, summary_pdf)
+  }
+
+  invisible(sig_paths)
 }

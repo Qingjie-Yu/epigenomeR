@@ -5,18 +5,22 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
     library(scales)
   })
 
+  message(sprintf("Plotting bubble chart: %d targets, pathways from table_list", length(table_list)))
+
   df_long <- dplyr::bind_rows(lapply(names(table_list), function(nm) {
     tb <- table_list[[nm]]
     tb$target <- nm
     tb
   }))
 
+  message(sprintf("  df_long: %d rows, %d unique pathways", nrow(df_long), length(unique(df_long$pathway))))
+
   df_long <- df_long |>
     dplyr::mutate(
-      padj_safe = dplyr::if_else(is.na(padj), NA_real_, pmax(padj, min_padj_for_color)),
+      padj_safe     = dplyr::if_else(is.na(padj), NA_real_, pmax(padj, min_padj_for_color)),
       neglog10_padj = -log10(padj_safe),
-      neglog10_cap = pmin(neglog10_padj, cap_neglog10),
-      size_val = log2(1 + pmax(fold, 0))
+      neglog10_cap  = pmin(neglog10_padj, cap_neglog10),
+      size_val      = log2(1 + pmax(fold, 0))
     )
 
   pathway_levels <- df_long |>
@@ -27,41 +31,62 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
 
   df_long <- df_long |>
     dplyr::mutate(
-      target = factor(target, levels = names(table_list)),
+      target  = factor(target,  levels = names(table_list)),
       pathway = factor(pathway, levels = rev(pathway_levels))
     )
+
+  n_targets  <- length(table_list)
+  n_pathways <- length(unique(df_long$pathway))
+
+  # longest pathway label → estimate y-axis margin
+  max_pathway_nchar <- max(nchar(as.character(pathway_levels)))
+  yaxis_margin      <- max_pathway_nchar * 0.07  # ~0.07 inch per character
+
+  # longest target label → estimate x-axis margin (rotated 45°)
+  max_target_nchar <- max(nchar(names(table_list)))
+  xaxis_margin     <- max_target_nchar * 0.07
+
+  # plot body: per-column and per-row cell size
+  col_width  <- 0.5   # inch per target column
+  row_height <- 0.25  # inch per pathway row
+  legend_width <- 2.5 # inch for right-side legend
+
+  width  <- yaxis_margin + n_targets * col_width + legend_width
+  height <- xaxis_margin + n_pathways * row_height + 0.5  # 0.5 for top margin
+
+  # floor values to avoid tiny PDFs
+  width  <- max(width,  5)
+  height <- max(height, 4)
+
+  message(sprintf("  PDF size: %.1f x %.1f inch (%d targets × %d pathways, y-margin: %.1f, x-margin: %.1f)",
+                  width, height, n_targets, n_pathways, yaxis_margin, xaxis_margin))
 
   p <- ggplot(df_long, aes(x = target, y = pathway)) +
     geom_point(aes(size = size_val, color = neglog10_cap)) +
     scale_color_gradient(
-      name = expression(-log[10](padj)),
-      low = "grey90",
-      high = "blue4",
+      name   = expression(-log[10](padj)),
+      low    = "grey90",
+      high   = "blue4",
       limits = c(0, cap_neglog10),
-      oob = scales::squish
+      oob    = scales::squish
     ) +
     scale_size_continuous(name = "log2(1 + fold_enrichment)") +
     labs(x = NULL, y = NULL) +
     theme_bw() +
     theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position    = "right",
+      axis.text.x        = element_text(angle = 45, hjust = 1),
       panel.grid.major.y = element_line(linewidth = 0.3),
-      panel.grid.minor = element_blank()
+      panel.grid.minor   = element_blank()
     )
 
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-
-  n_targets <- length(table_list)
-  n_pathways <- length(unique(df_long$pathway))
-  width <- 4 + 0.45 * n_targets
-  height <- 2 + 0.25 * n_pathways
-
   plot_path <- file.path(out_dir, "pathway_annotation.pdf")
   ggsave(plot_path, plot = p, width = width, height = height, limitsize = FALSE)
+  message(sprintf("  Saved: %s", plot_path))
 }
 
-
-pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", gene_sets = "MSigDB:H", plot = TRUE) {
+pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE) {
   # Load required packages
   suppressPackageStartupMessages({
     library(rGREAT)
@@ -79,19 +104,20 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", gene_
   BPPARAM <- get_BPPARAM()
 
   # Parameter validation
-  if (!ref_genome %in% c("hg38", "mm10")) {
-    stop("Unsupported genome. Please use 'hg38' or 'mm10'.")
-  }
-  if (ref_genome == "hg38") {
-    tss_source <- "TxDb.Hsapiens.UCSC.hg38.knownGene"
-  }
-  if (ref_genome == "mm10") {
-    tss_source <- "TxDb.Mmusculus.UCSC.mm10.knownGene"
-  }
+  species <- switch(ref_genome,
+    hg38 = "Homo sapiens",
+    mm10 = "Mus musculus",
+    stop("Unsupported genome: ", ref_genome)
+  )
+  tss_source <- switch(ref_genome,
+    hg38 = "TxDb.Hsapiens.UCSC.hg38.knownGene",
+    mm10 = "TxDb.Mmusculus.UCSC.mm10.knownGene"
+  )
 
   # Run rGREAT
-  gene_sets_data <- msigdbr(species = "Homo sapiens", collection = "H") |>
+  gene_sets_data <- msigdbr(species = species, collection = msigdb_collection) |>
   (\(df) split(as.character(df$ncbi_gene), df$gs_name))()
+  message(sprintf("  Loaded %d gene sets from MSigDB", length(gene_sets_data)))
 
   gr_names <- names(query)
   table_list <- BiocParallel::bplapply(gr_names, function(nm) {
