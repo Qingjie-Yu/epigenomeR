@@ -178,8 +178,11 @@ differential_summary_plot <- function(tsv, pdf) {
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
 differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, mean_quantile = 0.25, lfc_threshold = 0.5, fdr_threshold = 0.05) {
   suppressPackageStartupMessages({
-    library(arrow); library(tibble); library(glue)
-    library(edgeR); library(limma)
+    library(arrow)
+    library(tibble)
+    library(glue)
+    library(edgeR)
+    library(limma)
   })
 
   # input validation
