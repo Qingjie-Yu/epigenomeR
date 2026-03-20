@@ -11,7 +11,7 @@ read_peak_file <- function(f) {
 
   GRanges(
     seqnames = dt$chrom,
-    ranges = IRanges(start = dt$chromStart + 1L, end = dt$chromEnd),
+    ranges = IRanges::IRanges(start = dt$chromStart + 1L, end = dt$chromEnd),
     strand = "*"
   )
 }
