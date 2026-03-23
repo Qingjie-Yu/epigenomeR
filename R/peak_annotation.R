@@ -93,7 +93,7 @@ peak_genomic_distribution <- function(peak_path, out_dir = "./", pattern = "_pea
 #     Regex pattern to match PEAK filenames (used for sample name extraction). Default: "_peaks\\.narrowPeak$"
 #   plot:
 #     Whether to generate annotation plots. Default: TRUE
-peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg38", pattern = "_peaks\\.narrowPeak$", plot = TRUE) {
+peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", pattern = "_peaks\\.narrowPeak$", plot = TRUE) {
   suppressPackageStartupMessages({
     library(rtracklayer)
     library(GenomicRanges)
@@ -111,6 +111,6 @@ peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg3
   grl <- read_peak_to_grl(peak_path=peak_path, pattern=pattern)
 
   # Pathway annotation for each target
-  pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, plot = plot)
+  pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, msigdb_collection = msigdb_collection, plot = plot)
   message("Pathway annotation complete")
 }

@@ -63,7 +63,7 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
   pdf_w <- (ncol(log2_mat) * col_width_mm + (length(sample_names) - 1) * 8) / 25.4
   pdf_h <- nrow(log2_mat) * row_height_mm / 25.4 + fontsize / 72 * 1.5
 
-  pdf_filename <- file.path(out_dir, glue("{cmp_tag}_{grp_name}.pdf"))
+  pdf_filename <- file.path(out_dir, glue("{grp_name}.pdf"))
   pdf(pdf_filename, width = pdf_w, height = pdf_h)
   set.seed(random_seed)
   draw(ht, background = "transparent", show_annotation_legend = FALSE)

@@ -1,4 +1,4 @@
-peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
+peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", bam_pattern = "\\.bam$", peak_pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
   # input validation
   if (length(peak_dirs) != length(conditions)) {
     stop("peak_dirs and conditions must have the same length.")
@@ -22,8 +22,8 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
     paths <- list.files(d, pattern = pat, full.names = TRUE)
     setNames(paths, stringr::str_replace(basename(paths), pat, ""))
   }
-  peak_maps <- lapply(peak_dirs, scan_dir, pat = pattern)
-  bam_maps  <- lapply(bam_dirs,  scan_dir, pat = "\\.bam$")
+  peak_maps <- lapply(peak_dirs, scan_dir, pat = peak_pattern)
+  bam_maps  <- lapply(bam_dirs,  scan_dir, pat = bam_pattern)
 
   common_peak_pairs <- Reduce(intersect, lapply(peak_maps, names))
   common_bam_pairs <- Reduce(intersect, lapply(bam_maps,  names))
