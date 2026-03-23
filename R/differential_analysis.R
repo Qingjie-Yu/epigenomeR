@@ -1,4 +1,8 @@
 differential_analysis <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, ref_genome = "hg38", apply_annotation = TRUE, plot = TRUE) {
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+
   # Step1: get differential regions
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  Differential Regions")

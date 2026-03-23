@@ -76,11 +76,12 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
 
 differential_heatmap <- function(dr_result, out_dir = "./", show_colnames = FALSE, col_width_mm  = 10, row_height_mm = 0.4, random_seed = 42) {
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
-  for (grp_name in names(dr_result)) {
-    for (cmp_tag in names(dr_result[[grp_name]])) {
-      counts_path <- dr_result[[grp_name]][[cmp_tag]]
+  for (cmp_tag in names(dr_result)) {
+    cmp_dir <- file.path(out_dir, cmp_tag)
+    for (grp_name in names(dr_result[[cmp_tag]])) {
+      counts_path <- dr_result[[cmp_tag]][[grp_name]]
       if (is.null(counts_path) || !file.exists(counts_path)) next
-      differential_heatmap_single(counts_path = counts_path, cmp_tag = cmp_tag, grp_name = grp_name, out_dir = out_dir, show_colnames = show_colnames, col_width_mm  = col_width_mm, row_height_mm = row_height_mm, random_seed = random_seed)
+      differential_heatmap_single(counts_path = counts_path, cmp_tag = cmp_tag, grp_name = grp_name, out_dir = cmp_dir, show_colnames = show_colnames, col_width_mm  = col_width_mm, row_height_mm = row_height_mm, random_seed = random_seed)
     }
   }
 }

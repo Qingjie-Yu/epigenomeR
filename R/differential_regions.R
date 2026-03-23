@@ -69,24 +69,27 @@ run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile 
 # combined     : original region × sample matrix (for log2 feather output)
 # group_name   : pair name or cluster name (used in filenames and summary)
 # out_dir      : passed through
-write_da_results <- function(limma_result, combined, group_name, out_dir = "./") {
+write_da_results <- function(limma_result, combined, group_name, cmp_dir_map) {
   if (!is.null(limma_result$skipped)) {
     warning("Group ", group_name, " skipped: ", limma_result$skipped)
     return(invisible(NULL))
   }
 
   meta_keys <- c("n_before", "n_nonzero", "n_tested", "skipped")
-  cmp_tags  <- setdiff(names(limma_result), meta_keys)
+  cmp_tags  <- names(cmp_dir_map)
   sig_paths <- list()
 
   for (cmp_tag in cmp_tags) {
-    res    <- limma_result[[cmp_tag]]
-    tt     <- res$tt
-    sig    <- res$sig
-    prefix <- file.path(out_dir, glue::glue("{cmp_tag}_{group_name}"))
+    cmp_dir <- cmp_dir_map[[cmp_tag]]
+    prefix <- file.path(cmp_dir, group_name)
 
-    write.table(cbind(pos = rownames(tt), tt),
-                paste0(prefix, "_all.tsv"),
+    res <- limma_result[[cmp_tag]]
+    if (is.null(res)) next
+
+    tt <- res$tt
+    sig <- res$sig
+    all_path <- paste0(prefix, "_all.tsv")
+    write.table(cbind(pos = rownames(tt), tt), all_path,
                 sep = "\t", quote = FALSE, row.names = FALSE)
 
     # sig stats
@@ -97,7 +100,7 @@ write_da_results <- function(limma_result, combined, group_name, out_dir = "./")
       sig_paths[[cmp_tag]] <- sig_path
     }
 
-    summary_tsv <- file.path(out_dir, glue::glue("{cmp_tag}_summary.tsv"))
+    summary_tsv <- file.path(cmp_dir, "summary.tsv")
     summary_row <- data.frame(
       group                = group_name,
       n_rows_before        = limma_result$n_before,
@@ -184,7 +187,6 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
     library(edgeR)
     library(limma)
   })
-
   # input validation
   if (length(cm_path) != length(conditions))
     stop("cm_path and conditions must have the same length.")
@@ -197,6 +199,19 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   cm_path    <- cm_path[ord]
   conditions <- conditions[ord]
 
+  # create output dir
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+  
+  cond_levels <- unique(conditions)
+  cmp_tags <- combn(
+    cond_levels, 2,
+    function(x) paste0(x[2], "_vs_", x[1]),
+    simplify = TRUE
+  ) 
+  cmp_dir_map <- setNames(file.path(out_dir, cmp_tags), cmp_tags)
+  invisible(lapply(cmp_dir_map, dir.create, recursive = TRUE, showWarnings = FALSE))
+
+  # build sample names
   if (is.null(sample_names)) {
     sample_names <- paste0(conditions,
                            ave(seq_along(conditions), conditions, FUN = seq_along))
@@ -208,14 +223,12 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
     sample_names <- sample_names[ord]
   }
 
-  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
-
   # read feathers
   cm_list <- lapply(cm_path, function(f) {
-    df        <- arrow::read_feather(f)
+    df <- arrow::read_feather(f)
     if (!("pos" %in% colnames(df))) stop("Missing 'pos' column in: ", f)
-    pos       <- df$pos; df$pos <- NULL
-    mat       <- as.matrix(df); mode(mat) <- "numeric"
+    pos <- df$pos; df$pos <- NULL
+    mat <- as.matrix(df); mode(mat) <- "numeric"
     rownames(mat) <- as.character(pos)
     mat
   })
@@ -276,7 +289,7 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
       fdr_threshold = fdr_threshold
     )
 
-    grp_result <- write_da_results(limma_result, combined, grp_name, out_dir = out_dir)
+    grp_result <- write_da_results(limma_result, combined, grp_name, cmp_dir_map)
 
     # write pair-level counts for sig regions
     if (!is.null(grp_result)) {
@@ -296,22 +309,22 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
           counts_out <- combined[sig_regions, , drop = FALSE]
         }
 
-        counts_path <- file.path(out_dir,glue("{cmp_tag}_{grp_name}_sig_counts.tsv"))
+        counts_path <- file.path(cmp_dir_map[[cmp_tag]], glue("{grp_name}_sig_counts.tsv"))
         write.table(
           cbind(pos = rownames(counts_out), as.data.frame(counts_out)),
           counts_path, sep = "\t", quote = FALSE, row.names = FALSE
         )
-        result[[grp_name]][[cmp_tag]] <- counts_path
+        result[[cmp_tag]][[grp_name]] <- counts_path
       }
     }
   }
 
   # summary plots
   cond_levels <- sort(unique(conditions))
-  for (cmp in combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)) {
+  for (cmp in cmp_tags) {
     cmp_tag     <- paste0(cmp[1], "_vs_", cmp[2])
-    summary_tsv <- file.path(out_dir, paste0(cmp_tag, "_summary.tsv"))
-    summary_pdf <- file.path(out_dir, paste0(cmp_tag, "_summary.pdf"))
+    summary_tsv <- file.path(cmp_dir_map[[cmp_tag]], "summary.tsv")
+    summary_pdf <- file.path(cmp_dir_map[[cmp_tag]], "summary.pdf")
     if (file.exists(summary_tsv))
       differential_summary_plot(summary_tsv, summary_pdf)
   }
@@ -330,7 +343,7 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
     library(limma)
   })
 
-  # Input validation 
+  # input validation 
   if (length(bam_path) != length(conditions))
     stop("bam_path and conditions must have the same length.")
 
@@ -346,6 +359,19 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
   bam_path   <- bam_path[ord]
   conditions <- conditions[ord]
 
+  # create output dir
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+  
+  cond_levels <- unique(conditions)
+  cmp_tags <- combn(
+    cond_levels, 2,
+    function(x) paste0(x[2], "_vs_", x[1]),
+    simplify = TRUE
+  ) 
+  cmp_dir_map <- setNames(file.path(out_dir, cmp_tags), cmp_tags)
+  invisible(lapply(cmp_dir_map, dir.create, recursive = TRUE, showWarnings = FALSE))
+
+  # build sample names
   if (is.null(sample_names)) {
     sample_names <- paste0(conditions,
                            ave(seq_along(conditions), conditions, FUN = seq_along))
@@ -356,8 +382,6 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
       stop("sample_names must be unique.")
     sample_names <- sample_names[ord]
   }
-
-  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Detect chromosome naming style from first BAM 
   bam_header  <- Rsamtools::scanBamHeader(bam_path[1])
@@ -428,7 +452,7 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
     lfc_threshold = lfc_threshold,
     fdr_threshold = fdr_threshold
   )
-  sig_paths <- write_da_results(limma_result, combined, pair, out_dir = out_dir)
+  sig_paths <- write_da_results(limma_result, combined, pair, cmp_dir_map)
 
   invisible(sig_paths)
 }
