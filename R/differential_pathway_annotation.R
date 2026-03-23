@@ -26,7 +26,7 @@ differential_pathway_annotation <- function(dr_result, out_dir = "./", ref_genom
   
   for (cmp_tag in names(dr_result)) {
     grl <- dr_result_to_grl(dr_result[[cmp_tag]])
-    cmp_dir <- file.path(out_dir, cmp_tag)
+    cmp_dir <- file.path(out_dir, cmp_tag, "pathway_annotation")
     if (!length(grl)) next
     pathway_annotation(query = grl, out_dir = cmp_dir, ref_genome = ref_genome, msigdb_collection = msigdb_collection, plot = plot)
   }

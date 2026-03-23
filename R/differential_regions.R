@@ -322,7 +322,6 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   # summary plots
   cond_levels <- sort(unique(conditions))
   for (cmp in cmp_tags) {
-    cmp_tag     <- paste0(cmp[1], "_vs_", cmp[2])
     summary_tsv <- file.path(cmp_dir_map[[cmp_tag]], "summary.tsv")
     summary_pdf <- file.path(cmp_dir_map[[cmp_tag]], "summary.pdf")
     if (file.exists(summary_tsv))
