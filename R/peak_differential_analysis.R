@@ -1,4 +1,4 @@
-peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, out_dir = "./", pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
+peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0.25) {
   # input validation
   if (length(peak_dirs) != length(conditions)) {
     stop("peak_dirs and conditions must have the same length.")
@@ -11,6 +11,10 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
   if (any(cond_table < 2)) {
     stop("Each condition must have at least 2 replicates. Failed for: ",
          paste(names(cond_table)[cond_table < 2], collapse = ", "))
+  }
+
+  if (!(ref_genome %in% c("mm10", "hg38"))) {
+    stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
   }
 
   # scan directories
@@ -51,6 +55,7 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
         peak_path   = peak_path,
         conditions  = conditions,
         pair        = pair,
+        ref_genome  = ref_genome,
         out_dir     = peak_set_dir,
         window_size = window_size,
         min_support = min_support

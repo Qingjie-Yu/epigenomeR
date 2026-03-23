@@ -17,39 +17,28 @@ read_peak_file <- function(f) {
 }
 
 build_master_regions <- function(gr_list, conditions, min_support = 2) {
-  sample_to_cond <- setNames(conditions, as.character(seq_along(conditions)))
-  cond_levels    <- unique(conditions)
+  stopifnot(length(conditions) == length(gr_list))
+  
+  cond_levels <- unique(conditions)
+  pieces <- disjoin(
+    unlist(GRangesList(gr_list), use.names = FALSE),
+    ignore.strand = TRUE
+  )
 
-  all_gr <- unlist(GRangesList(gr_list), use.names = FALSE) 
-  sample_idx <- rep(seq_along(gr_list),
-                    vapply(gr_list, length, integer(1)))
-
-  pieces <- disjoin(all_gr, ignore.strand = TRUE)
-  ov     <- findOverlaps(pieces, all_gr, ignore.strand = TRUE)
-
-  piece2sample <- rep(list(integer(0)), length(pieces))
-  if (length(ov) > 0) {
-    piece2sample_raw <- split(
-      sample_idx[subjectHits(ov)],
-      queryHits(ov)
-    )
-    piece2sample[as.integer(names(piece2sample_raw))] <- piece2sample_raw
-  }
-
-  keep <- vapply(piece2sample, function(samp_ids) {
-    if (length(samp_ids) == 0L) return(FALSE)
-    unique_samp <- as.character(unique(samp_ids))
+  mat <- sapply(gr_list, function(gr) {
+    countOverlaps(pieces, gr, ignore.strand = TRUE)
+  })
+  mat <- matrix(mat, nrow = length(pieces))
+  
+  keep <- apply(mat, 1, function(row) {
     any(vapply(cond_levels, function(cond) {
-      sum(sample_to_cond[unique_samp] == cond, na.rm = TRUE) >= min_support
+      sum((row > 0)[conditions == cond]) >= min_support
     }, logical(1)))
-  }, logical(1))
-
-  pieces_keep <- pieces[keep]
-  if (length(pieces_keep) == 0L) return(pieces_keep)
-  reduce(pieces_keep, ignore.strand = TRUE)
+  })
+  reduce(pieces[keep], ignore.strand = TRUE)
 }
 
-tile_region_with_tail <- function(gr, window_size, overlap = 0L) {
+tile_region_centered <- function(gr, chr_sizes, window_size, overlap = 0L) {
   # overlap: number of bases shared between adjacent windows (0 = non-overlapping)
   if (overlap < 0L || overlap >= window_size) {
     stop("'overlap' must be >= 0 and < window_size.")
@@ -62,17 +51,27 @@ tile_region_with_tail <- function(gr, window_size, overlap = 0L) {
     chr <- as.character(seqnames(gr)[i])
     s <- start(gr)[i]
     e <- end(gr)[i]
+    w   <- e - s + 1L
 
-    if (width(gr)[i] < window_size) next
+    n <- ceiling(w / window_size)
+    mid <- ceiling((s + e) / 2)
 
-    starts <- seq(from = s, to = e - window_size + 1L, by = step_size)
-
-    # append tail window if the last regular window doesn't reach the region end
-    tail_start <- e - window_size + 1L
-    if (tail_start > tail(starts, 1L)) {
-      starts <- c(starts, tail_start)
+    if (n %% 2L == 1L) {
+      anchor <- mid - (window_size %/% 2L)
+      offsets <- seq(-(n %/% 2L), n %/% 2L, by = 1L)
+    } else {
+      anchor  <- mid
+      offsets <- seq(-(n %/% 2L), n %/% 2L - 1L, by = 1L)
     }
-    ends <- starts + window_size - 1L
+    starts <- anchor + offsets * step_size
+    ends   <- starts + window_size - 1L
+
+    # discard windows that exceed chromosome boundaries
+    chr_len <- chr_sizes[[chr]]
+    in_bound <- starts >= 1L & ends <= chr_len
+    starts <- starts[in_bound]
+    ends <- ends[in_bound]
+    if (length(starts) == 0L) next
 
     out_list[[i]] <- GRanges(
       seqnames = chr,
@@ -87,11 +86,21 @@ tile_region_with_tail <- function(gr, window_size, overlap = 0L) {
 }
 
 
-build_peak_set <- function(peak_path, pair, conditions, out_dir = "./", window_size = NULL, min_support = 2) {
+build_peak_set <- function(peak_path, pair, conditions, ref_genome = "hg38", out_dir = "./", window_size = NULL, min_support = 2) {
   suppressPackageStartupMessages({
     library(data.table)
+    library(BSgenome.Hsapiens.UCSC.hg38)
+    library(BSgenome.Mmusculus.UCSC.mm10)
   })
   # parameter check
+  if (ref_genome == "hg38") {
+    chr_sizes <- seqlengths(BSgenome.Hsapiens.UCSC.hg38)
+  } else if (ref_genome == "mm10") {
+    chr_sizes <- seqlengths(BSgenome.Mmusculus.UCSC.mm10)
+  } else {
+    stop("Error: 'ref_genome' must be either 'hg38' or 'mm10'.")
+  }
+
   if (length(peak_path) != length(conditions)) {
     stop("peak_path and conditions must have the same length.")
   }
@@ -127,6 +136,10 @@ build_peak_set <- function(peak_path, pair, conditions, out_dir = "./", window_s
     stop("No valid peaks remain after filtering.")
   }
 
+  # 
+  peak_style <- seqlevelsStyle(gr_list[[1]])[1]
+  names(chr_sizes) <- GenomeInfoDb::mapSeqlevels(names(chr_sizes), peak_style)
+
   # Build master regions
   master_regions <- build_master_regions(gr_list = gr_list, conditions = conditions, min_support = min_support)
   if (length(master_regions) == 0) {
@@ -136,7 +149,7 @@ build_peak_set <- function(peak_path, pair, conditions, out_dir = "./", window_s
   if (is.null(window_size)) {
     peak_set <- master_regions
   } else {
-    peak_set <- tile_region_with_tail(gr = master_regions, window_size = window_size)
+    peak_set <- tile_region_centered(gr = master_regions, chr_sizes = chr_sizes, window_size = window_size)
   }
   peak_set <- sort(peak_set, ignore.strand = TRUE)
 
