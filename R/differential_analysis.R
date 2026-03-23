@@ -22,8 +22,7 @@ differential_analysis <- function(cm_path, conditions, sample_names = NULL, out_
     cat("\n", strrep("=", 40), "\n", sep = "")
     cat("  Pathway Annotation")
     cat("\n", strrep("=", 40), "\n", sep = "")
-    pathway_dir <- file.path(out_dir, "pathway_enrichment")
-    differential_pathway_annotation(dr_result = dr_result, out_dir = pathway_dir, ref_genome = ref_genome, plot = plot)
+    differential_pathway_annotation(dr_result = dr_result, out_dir = out_dir, ref_genome = ref_genome, plot = plot)
   }
   invisible(dr_result)
 }
