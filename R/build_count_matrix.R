@@ -1,3 +1,10 @@
+is_bam_paired <- function(bam_path) {
+  param <- ScanBamParam(what = "flag")
+  flags <- scanBam(bam_path[1], param = param)[[1]]$flag
+  if (length(flags) == 0) return(FALSE)
+  any(bitwAnd(head(flags, 1000), 0x1) != 0)
+}
+
 # Build Count Matrix Function
 # Post: Build a fragment-overlap count matrix from paired-end BAM files over user-specified genomic regions and save it as a Feather file.
 # Parameter:
@@ -63,6 +70,9 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   bam_seqinfo <- Seqinfo(seqnames = names(bam_header[[1]]$targets), seqlengths = bam_header[[1]]$targets)
   bam_style <- seqlevelsStyle(bam_seqinfo)[1]
 
+  # Detect single or paired
+  is_paired <- is_bam_paired(bam_path)
+
   # Generate Count Matrix for each chr
   # Process custom regions (no chromosome loop needed)
   if (use_custom_region) {
@@ -100,39 +110,55 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     # Process BAM files for custom regions
     for (k in seq_along(bam_path)) {
       bam <- bam_path[k]
-      temp <- readGAlignmentPairs(bam)
-      locus <- data.frame(
-        first_start = start(temp@first),
-        first_end = end(temp@first),
-        last_start = start(temp@last),
-        last_end = end(temp@last)
-      )
       overlapCount <- numeric(length(bin))
-      if (nrow(locus) == 0) {
-        bamContent <- GRanges()
-      } else {
-        frag_start <- rowMin(as.matrix(locus))
-        frag_end <- rowMax(as.matrix(locus))
-        bamContent <- makeGRangesFromDataFrame(data.frame(
-          seqnames = as.vector(seqnames(temp)), strand = "*",
-          start = frag_start, end = frag_end
-        ))
 
+      if (is_bam_paired(bam)) {
+        temp <- readGAlignmentPairs(bam)
+        if (length(temp) == 0) {
+          bamContent <- GRanges()
+        } else {
+          locus <- data.frame(
+            first_start = start(temp@first),
+            first_end   = end(temp@first),
+            last_start  = start(temp@last),
+            last_end    = end(temp@last)
+          )
+          frag_start <- rowMin(as.matrix(locus))
+          frag_end   <- rowMax(as.matrix(locus))
+          bamContent <- makeGRangesFromDataFrame(data.frame(
+            seqnames = as.vector(seqnames(temp)), strand = "*",
+            start = frag_start, end = frag_end
+          ))
+        }
+      } else {
+        temp <- readGAlignments(bam)
+        if (length(temp) == 0) {
+          bamContent <- GRanges()
+        } else {
+          bamContent <- GRanges(
+            seqnames = seqnames(temp),
+            ranges   = IRanges(start = start(temp), end = end(temp)),
+            strand   = "*"
+          )
+        }
+      }
+
+      if (length(bamContent) > 0) {
         overlaps <- findOverlaps(bamContent, bin, ignore.strand = TRUE)
         qh <- queryHits(overlaps)
         sh <- subjectHits(overlaps)
 
         fragment_starts <- start(bamContent)[qh]
-        fragment_ends <- end(bamContent)[qh]
+        fragment_ends   <- end(bamContent)[qh]
         fragment_lengths <- fragment_ends - fragment_starts + 1
 
         bin_starts <- start(bin)[sh]
-        bin_ends <- end(bin)[sh]
+        bin_ends   <- end(bin)[sh]
 
-        overlap_starts <- pmax(fragment_starts, bin_starts)
-        overlap_ends <- pmin(fragment_ends, bin_ends)
+        overlap_starts  <- pmax(fragment_starts, bin_starts)
+        overlap_ends    <- pmin(fragment_ends, bin_ends)
         overlap_lengths <- pmax(0, overlap_ends - overlap_starts + 1)
-        proportions <- overlap_lengths / fragment_lengths
+        proportions     <- overlap_lengths / fragment_lengths
 
         if (length(sh) > 0) {
           summed <- aggregate(proportions, by = list(bin_id = sh), FUN = sum)
@@ -188,39 +214,55 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       for (k in seq_along(bam_path)) {
         bam <- bam_path[k]
         param <- ScanBamParam(which = GRanges(chr_i, IRanges(1, chrSizei)))
-        temp <- readGAlignmentPairs(bam, param = param)
-        locus <- data.frame(
-          first_start = start(temp@first),
-          first_end = end(temp@first),
-          last_start = start(temp@last),
-          last_end = end(temp@last)
-        )
         overlapCount <- numeric(length(bin))
-        if (nrow(locus) == 0) {
-          bamContent <- GRanges()
-        } else {
-          frag_start <- rowMin(as.matrix(locus))
-          frag_end <- rowMax(as.matrix(locus))
-          bamContent <- makeGRangesFromDataFrame(data.frame(
-            seqnames = as.vector(seqnames(temp)), strand = "*",
-            start = frag_start, end = frag_end
-          ))
 
+        if (is_paired) {
+          temp <- readGAlignmentPairs(bam, param = param)
+          if (length(temp) == 0) {
+            bamContent <- GRanges()
+          } else {
+            locus <- data.frame(
+              first_start = start(temp@first),
+              first_end   = end(temp@first),
+              last_start  = start(temp@last),
+              last_end    = end(temp@last)
+            )
+            frag_start <- rowMin(as.matrix(locus))
+            frag_end   <- rowMax(as.matrix(locus))
+            bamContent <- makeGRangesFromDataFrame(data.frame(
+              seqnames = as.vector(seqnames(temp)), strand = "*",
+              start = frag_start, end = frag_end
+            ))
+          }
+        } else {
+          temp <- readGAlignments(bam, param = param)
+          if (length(temp) == 0) {
+            bamContent <- GRanges()
+          } else {
+            bamContent <- GRanges(
+              seqnames = seqnames(temp),
+              ranges   = IRanges(start = start(temp), end = end(temp)),
+              strand   = "*"
+            )
+          }
+        }
+
+        if (length(bamContent) > 0) {
           overlaps <- findOverlaps(bamContent, bin, ignore.strand = TRUE)
           qh <- queryHits(overlaps)
           sh <- subjectHits(overlaps)
 
-          fragment_starts <- start(bamContent)[qh]
-          fragment_ends <- end(bamContent)[qh]
+          fragment_starts  <- start(bamContent)[qh]
+          fragment_ends    <- end(bamContent)[qh]
           fragment_lengths <- fragment_ends - fragment_starts + 1
 
           bin_starts <- start(bin)[sh]
-          bin_ends <- end(bin)[sh]
+          bin_ends   <- end(bin)[sh]
 
-          overlap_starts <- pmax(fragment_starts, bin_starts)
-          overlap_ends <- pmin(fragment_ends, bin_ends)
+          overlap_starts  <- pmax(fragment_starts, bin_starts)
+          overlap_ends    <- pmin(fragment_ends, bin_ends)
           overlap_lengths <- pmax(0, overlap_ends - overlap_starts + 1)
-          proportions <- overlap_lengths / fragment_lengths
+          proportions     <- overlap_lengths / fragment_lengths
 
           if (length(sh) > 0) {
             summed <- aggregate(proportions, by = list(bin_id = sh), FUN = sum)
