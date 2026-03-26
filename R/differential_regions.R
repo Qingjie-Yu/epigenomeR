@@ -2,7 +2,7 @@
 # combined   : region × sample integer matrix, colnames = sample_names
 # conditions : character vector, same order as colnames(combined)
 # returns    : named list, one entry per comparison + meta (n_before/n_nonzero/n_tested)
-run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0.25, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, fdr_threshold = 0.05) {
   conditions_f <- factor(conditions)
   cond_levels  <- levels(conditions_f)
   design       <- model.matrix(~ 0 + conditions_f)

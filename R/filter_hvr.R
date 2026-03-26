@@ -13,7 +13,7 @@
 #   - Filtered count matrix (.feather): Contains only selected informative regions
 #   - Optional diagnostic plots (.png): Shows selection process across expression levels
 
-filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bins = 100, keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE) {
+filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bins = 100, keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE, seed = 42) {
   # Load libraries
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -53,6 +53,7 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bi
   )
 
   # Select top hypervariant regions from each bin
+  set.seed(42)
   selected_regions <- mav_filtered %>%
     dplyr::group_by(bin) %>%
     dplyr::slice_max(order_by = hypervar, n = n_per_bin, with_ties = FALSE) %>%
