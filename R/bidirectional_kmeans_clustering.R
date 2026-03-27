@@ -110,7 +110,7 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
   names(row_letter) <- names(row_cl)
 
   # col cluster
-  set.seed(seed+1)
+  set.seed(seed + 1)
   col_cl <- consensus_kmeans(t(mat), col_k, col_repeats)
   col_cl <- order_clusters(t(mat), col_cl, do_order_clusters)
   names(col_cl) <- colnames(mat)
