@@ -46,8 +46,6 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
     feature_linkage <- cluster_linkage
   }
 
-  set.seed(seed)
-
   # Consensus k-means
   consensus_kmeans <- function(m, k, reps) {
     parts <- lapply(seq_len(reps), function(i) {
@@ -102,7 +100,8 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
     cl
   }
 
-  # row cluster: output letter
+  # row cluster
+  set.seed(seed)
   row_cl <- consensus_kmeans(mat, row_k, row_repeats)
   row_cl <- order_clusters(mat, row_cl, do_order_clusters)
   names(row_cl) <- rownames(mat)
@@ -110,6 +109,8 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
   row_letter <- LETTERS[row_cl]
   names(row_letter) <- names(row_cl)
 
+  # col cluster
+  set.seed(seed+1)
   col_cl <- consensus_kmeans(t(mat), col_k, col_repeats)
   col_cl <- order_clusters(t(mat), col_cl, do_order_clusters)
   names(col_cl) <- colnames(mat)
