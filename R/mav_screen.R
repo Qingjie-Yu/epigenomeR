@@ -45,8 +45,15 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
   mat <- as.matrix(df)
   mode(mat) <- "numeric"
 
-  region_mean <- rowMeans(mat)
-  region_var <- rowVars(mat)
+  region_mean_raw <- rowMeans(mat)
+  region_var_raw <- rowVars(mat)
+  valid_idx <- region_mean_raw > 0 & region_var_raw > 0
+  message("Excluding ", sum(!valid_idx), " regions with zero mean or variance")
+
+  mat <- mat[valid_idx, ]
+  pos <- pos[valid_idx]
+  region_mean <- region_mean_raw[valid_idx]
+  region_var <- region_var_raw[valid_idx]
   data_fit <- data.frame(mean = region_mean, var = region_var)
 
   # Set regression model
