@@ -48,6 +48,7 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
 
   # Consensus k-means
   consensus_kmeans <- function(m, k, reps) {
+    if (k >= nrow(m)) return(seq_len(nrow(m)))
     parts <- lapply(seq_len(reps), function(i) {
       clue::as.cl_hard_partition(stats::kmeans(m, k, iter.max = 50))
     })
