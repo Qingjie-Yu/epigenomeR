@@ -44,6 +44,7 @@ mav_screen <- function(transformed_cm_path, out_dir = "./", fitting_model = "gam
   df$pos <- NULL
   mat <- as.matrix(df)
   mode(mat) <- "numeric"
+  mat <- mat[, order(colnames(mat))]
 
   region_mean_raw <- rowMeans(mat)
   region_var_raw <- rowVars(mat)

@@ -40,6 +40,7 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   mode(mat) <- "numeric"
   rownames(mat) <- as.character(pos)
 
+  mat <- mat[, sort(colnames(mat))]
   col_km <- min(col_km, ncol(mat))
 
   message("Performing bidirectional k-means clustering...")

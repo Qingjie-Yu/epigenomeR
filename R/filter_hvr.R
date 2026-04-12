@@ -71,6 +71,8 @@ filter_hvr <- function(transformed_cm_path, mav_stats_path, out_dir = "./", n_bi
 
   # Load count matrix and extract selected regions
   count_matrix <- arrow::read_feather(transformed_cm_path)
+  non_pos_cols <- setdiff(colnames(count_matrix), "pos")
+  count_matrix <- count_matrix[, c("pos", sort(non_pos_cols))]
   selected_matrix <- count_matrix %>%
     dplyr::filter(pos %in% final_regions$pos)
 
