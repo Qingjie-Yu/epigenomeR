@@ -66,6 +66,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   }
 
   # Detect chromosome naming style
+  bam_path <- sort(bam_path) # sort by name
   bam_header <- scanBamHeader(bam_path[1])
   bam_seqinfo <- Seqinfo(seqnames = names(bam_header[[1]]$targets), seqlengths = bam_header[[1]]$targets)
   bam_style <- seqlevelsStyle(bam_seqinfo)[1]
