@@ -194,6 +194,6 @@ biclustering_pathway_annotation <- function(row_cluster_file_path, out_dir = "./
   row_grl <- extract_region_to_grl(row_cluster_file_path = row_cluster_file_path)
 
   # Pathway annotation for each cluster
-  pathway_annotation(query = row_grl, out_dir = out_dir, ref_genome = ref_genome, gene_sets = gene_sets, plot = plot)
+  pathway_annotation(query = row_grl, out_dir = out_dir, ref_genome = ref_genome, plot = plot)
   message("Pathway annotation complete")
 }

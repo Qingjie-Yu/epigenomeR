@@ -108,7 +108,7 @@ peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg3
   }
 
   # PEAK -> GRangesList
-  grl <- read_peak_to_grl(peak_path=peak_path, pattern=pattern)
+  grl <- read_peak_to_grl(peak_path = peak_path, pattern = pattern)
 
   # Pathway annotation for each target
   pathway_annotation(query = grl, out_dir = out_dir, ref_genome = ref_genome, msigdb_collection = msigdb_collection, plot = plot)
