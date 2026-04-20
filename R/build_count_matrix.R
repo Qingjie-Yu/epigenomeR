@@ -16,9 +16,10 @@ is_bam_paired <- function(bam_path) {
 #   ref_genome: Reference genome used when regions is numeric. One of "hg38" or "mm10". Ignored when custom regions are provided.
 #   sample_name: Optional character. If provided, it is prepended to the output filename.
 #   force_chr_coord: When TRUE, region IDs ("pos" column) are always  "CHR_start_end", even if gene_id is available. When FALSE and a non-empty gene_id column exists, gene_id is used as the region identifier.
+#   by_single_crf  : When TRUE, after building the pair-level matrix (columns named "CRF1-CRF2"), aggregate counts by individual CRF: each output column is the sum of all pair columns that contain that CRF. Default FALSE.
 # Output: Writes a Feather file whose first column is 'pos' and remaining columns are fragment-overlap counts per BAM file. Returns the full output file path (character).
 
-build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, force_chr_coord = FALSE) {
+build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "hg38", sample_name = NULL, force_chr_coord = FALSE, by_single_crf = FALSE) {
   # Load Libraries
   suppressPackageStartupMessages({
     library(GenomicAlignments)
@@ -287,6 +288,19 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     binChriDataframe_full <- as.data.frame(data.table::rbindlist(binChriDataframe_list))
   }
 
+
+  # Aggregate by single CRF: sum all pair columns that contain each CRF name
+  if (by_single_crf) {
+    pos_col   <- binChriDataframe_full[, "pos", drop = FALSE]
+    count_cols <- binChriDataframe_full[, -1, drop = FALSE]
+    pair_names <- colnames(count_cols)
+    crf_names  <- unique(unlist(strsplit(pair_names, "-")))
+    crf_mat <- sapply(crf_names, function(crf) {
+      matched <- pair_names[sapply(strsplit(pair_names, "-"), function(parts) crf %in% parts)]
+      rowSums(count_cols[, matched, drop = FALSE])
+    })
+    binChriDataframe_full <- cbind(pos_col, as.data.frame(crf_mat))
+  }
 
   if (is.numeric(regions)) {
     filename <- paste0("Count_Matrix_", BINSIZE)
