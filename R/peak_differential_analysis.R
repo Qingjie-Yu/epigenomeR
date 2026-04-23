@@ -1,4 +1,5 @@
-peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", bam_pattern = "\\.bam$", peak_pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", bam_pattern = "\\.bam$", peak_pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+  p_type <- match.arg(p_type)
   # input validation
   if (length(peak_dirs) != length(conditions)) {
     stop("peak_dirs and conditions must have the same length.")
@@ -79,7 +80,8 @@ peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_n
           out_dir       = da_dir,
           min_support   = min_support,
           lfc_threshold = lfc_threshold,
-          fdr_threshold = fdr_threshold
+          p_threshold   = p_threshold,
+          p_type        = p_type
         )
         list(regions_bed = regions_bed, sig_paths = sig_paths)
       },

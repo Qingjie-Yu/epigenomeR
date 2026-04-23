@@ -2,7 +2,8 @@
 # combined   : region × sample integer matrix, colnames = sample_names
 # conditions : character vector, same order as colnames(combined)
 # returns    : named list, one entry per comparison + meta (n_before/n_nonzero/n_tested)
-run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+  p_type <- match.arg(p_type)
   conditions_f <- factor(conditions)
   cond_levels  <- levels(conditions_f)
   design       <- model.matrix(~ 0 + conditions_f)
@@ -52,11 +53,18 @@ run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile 
     tt   <- limma::topTable(fit2, sort.by = "P", n = Inf)
     tt$P.Value[tt$P.Value       == 0] <- 1e-300
     tt$adj.P.Val[tt$adj.P.Val   == 0] <- 1e-300
+    tt$bonferroni_p <- pmin(tt$P.Value * nrow(tt), 1)
+
+    p_col <- switch(p_type,
+      fdr        = "adj.P.Val",
+      nominal    = "P.Value",
+      bonferroni = "bonferroni_p"
+    )
 
     cmp_tag <- paste0(test, "_vs_", ref)
     results[[cmp_tag]] <- list(
       tt  = tt,
-      sig = tt[tt$adj.P.Val < fdr_threshold & abs(tt$logFC) > lfc_threshold, ,
+      sig = tt[tt[[p_col]] < p_threshold & abs(tt$logFC) > lfc_threshold, ,
                drop = FALSE]
     )
   }
@@ -179,7 +187,8 @@ differential_summary_plot <- function(tsv, pdf) {
 }
 
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
-differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, fdr_threshold = 0.05) {
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+  p_type <- match.arg(p_type)
   suppressPackageStartupMessages({
     library(arrow)
     library(tibble)
@@ -286,7 +295,8 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
       min_support = min_support,
       mean_quantile = mean_quantile,
       lfc_threshold = lfc_threshold,
-      fdr_threshold = fdr_threshold
+      p_threshold = p_threshold,
+      p_type = p_type
     )
 
     grp_result <- write_da_results(limma_result, combined, grp_name, cmp_dir_map)
@@ -322,8 +332,8 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   # summary plots
   cond_levels <- sort(unique(conditions))
   for (cmp in cmp_tags) {
-    summary_tsv <- file.path(cmp_dir_map[[cmp_tag]], "summary.tsv")
-    summary_pdf <- file.path(cmp_dir_map[[cmp_tag]], "summary.pdf")
+    summary_tsv <- file.path(cmp_dir_map[[cmp]], "summary.tsv")
+    summary_pdf <- file.path(cmp_dir_map[[cmp]], "summary.pdf")
     if (file.exists(summary_tsv))
       differential_summary_plot(summary_tsv, summary_pdf)
   }
@@ -333,7 +343,8 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
 
 
 # ── Public: peak-based DA (one feather per sample per pair) ─────────────────
-differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names = NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, fdr_threshold = 0.05, mean_quantile = 0) {
+differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names = NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), mean_quantile = 0) {
+  p_type <- match.arg(p_type)
   suppressPackageStartupMessages({
     library(GenomicAlignments)
     library(Rsamtools)
@@ -449,7 +460,8 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
     min_support = min_support,
     mean_quantile = mean_quantile,
     lfc_threshold = lfc_threshold,
-    fdr_threshold = fdr_threshold
+    p_threshold = p_threshold,
+    p_type = p_type
   )
   sig_paths <- write_da_results(limma_result, combined, pair, cmp_dir_map)
 
