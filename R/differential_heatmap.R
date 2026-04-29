@@ -12,16 +12,14 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
   pos       <- as.character(dt$pos)
   dt$pos    <- NULL
   all_cols  <- colnames(dt)
-  count_mat <- as.matrix(dt)
-  mode(count_mat) <- "numeric"
-  rownames(count_mat) <- pos
+  cpm_mat <- as.matrix(dt)
+  mode(cpm_mat) <- "numeric"
+  rownames(cpm_mat) <- pos
 
-  if (nrow(count_mat) == 0) {
+  if (nrow(cpm_mat) == 0) {
     message(glue("| {cmp_tag} | {grp_name} | empty counts file, skipping heatmap"))
     return(invisible(NULL))
   }
-
-  log2_mat <- log2(count_mat + 1)
 
   # auto-detect cluster mode
   use_cluster  <- any(grepl(":", all_cols, fixed = TRUE))
@@ -38,20 +36,20 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
   fontsize <- max(fontsize, 6)
 
   col_fun <- colorRamp2(
-    c(min(log2_mat), mean(log2_mat), max(log2_mat)),
+    c(min(cpm_mat), mean(cpm_mat), max(cpm_mat)),
     c("#3155C3", "white", "#AF0525")
   )
 
-  ht <- Heatmap(log2_mat,
-    name                = "log2",
+  ht <- Heatmap(cpm_mat,
+    name                = "log2 CPM",
     col                 = col_fun,
     show_row_names      = FALSE,
     show_column_names   = show_colnames,
     cluster_rows        = FALSE,
     cluster_columns     = FALSE,
     column_split        = col_split,
-    width               = ncol(log2_mat) * unit(col_width_mm,  "mm"),
-    height              = nrow(log2_mat) * unit(row_height_mm, "mm"),
+    width               = ncol(cpm_mat) * unit(col_width_mm,  "mm"),
+    height              = nrow(cpm_mat) * unit(row_height_mm, "mm"),
     column_title        = sample_names,
     column_title_gp     = gpar(fontsize = fontsize),
     column_gap          = unit(8, "mm"),
@@ -60,8 +58,8 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
     use_raster          = TRUE
   )
 
-  pdf_w <- (ncol(log2_mat) * col_width_mm + (length(sample_names) - 1) * 8) / 25.4
-  pdf_h <- nrow(log2_mat) * row_height_mm / 25.4 + fontsize / 72 * 1.5
+  pdf_w <- (ncol(cpm_mat) * col_width_mm + (length(sample_names) - 1) * 8) / 25.4
+  pdf_h <- nrow(cpm_mat) * row_height_mm / 25.4 + fontsize / 72 * 1.5
 
   pdf_filename <- file.path(out_dir, glue("{grp_name}.pdf"))
   pdf(pdf_filename, width = pdf_w, height = pdf_h)
@@ -69,7 +67,7 @@ differential_heatmap_single <- function(counts_path, cmp_tag, grp_name, out_dir 
   draw(ht, background = "transparent", show_annotation_legend = FALSE)
   dev.off()
 
-  message(glue("| {cmp_tag} | {grp_name} | {nrow(log2_mat)} regions | fontsize: {round(fontsize, 1)}"))
+  message(glue("| {cmp_tag} | {grp_name} | {nrow(cpm_mat)} regions | fontsize: {round(fontsize, 1)}"))
   invisible(pdf_filename)
 }
 

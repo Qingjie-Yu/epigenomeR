@@ -2,15 +2,13 @@
 # combined   : region × sample integer matrix, colnames = sample_names
 # conditions : character vector, same order as colnames(combined)
 # returns    : named list, one entry per comparison + meta (n_before/n_nonzero/n_tested)
-run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+run_limma_voom <- function(combined, conditions, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_factors = NULL) {
   p_type <- match.arg(p_type)
   conditions_f <- factor(conditions)
   cond_levels  <- levels(conditions_f)
   design       <- model.matrix(~ 0 + conditions_f)
   colnames(design) <- cond_levels
-
-  comparisons <- combn(cond_levels, 2,
-                       function(x) c(x[2], x[1]), simplify = FALSE)
+  comparisons <- combn(cond_levels, 2, function(x) c(x[2], x[1]), simplify = FALSE)
 
   # pre-filter: at least one condition with >= min_support non-zero replicates
   keep_by_condition <- sapply(cond_levels, function(cond) {
@@ -20,27 +18,26 @@ run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile 
   })
   if (is.vector(keep_by_condition))
     keep_by_condition <- matrix(keep_by_condition, ncol = 1)
-  combined_f0 <- combined[rowSums(keep_by_condition) > 0, , drop = FALSE]
-  if (nrow(combined_f0) < 2)
+  combined_f <- combined[rowSums(keep_by_condition) > 0, , drop = FALSE]
+  if (nrow(combined_f) < 2)
     return(list(skipped = "too few rows after non-zero filter"))
 
-  # first voom → mean expression filter
-  d0 <- edgeR::calcNormFactors(edgeR::DGEList(combined_f0))
-  y0 <- limma::voom(d0, design, plot = FALSE)
-  th <- quantile(rowMeans(y0$E), probs = mean_quantile, na.rm = TRUE)
-  combined_f1 <- combined_f0[rowMeans(y0$E) >= th, , drop = FALSE]
-  if (nrow(combined_f1) < 2)
-    return(list(skipped = paste0("too few rows after mean_quantile=", mean_quantile)))
-
-  # second voom → fit
-  d1  <- edgeR::calcNormFactors(edgeR::DGEList(combined_f1))
-  y1  <- limma::voom(d1, design, plot = FALSE)
-  fit <- limma::lmFit(y1, design)
+  # normalization + voom
+  d <- edgeR::DGEList(combined_f)
+  if (!is.null(norm_factors)) {
+    d$samples$norm.factors <- norm_factors[colnames(combined_f)]
+  } else {
+    d <- edgeR::calcNormFactors(d)
+  }
+  y   <- limma::voom(d, design, plot = FALSE)
+  fit <- limma::lmFit(y, design)
 
   results <- list(
     n_before  = nrow(combined),
-    n_nonzero = nrow(combined_f0),
-    n_tested  = nrow(combined_f1)
+    n_nonzero = nrow(combined_f),
+    n_tested  = nrow(combined_f),
+    log2_cpm  = y$E,
+    raw_counts = combined_f
   )
 
   for (cmp in comparisons) {
@@ -51,8 +48,8 @@ run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile 
     )
     fit2 <- limma::eBayes(limma::contrasts.fit(fit, contr))
     tt   <- limma::topTable(fit2, sort.by = "P", n = Inf)
-    tt$P.Value[tt$P.Value       == 0] <- 1e-300
-    tt$adj.P.Val[tt$adj.P.Val   == 0] <- 1e-300
+    tt$P.Value[tt$P.Value     == 0] <- 1e-300
+    tt$adj.P.Val[tt$adj.P.Val == 0] <- 1e-300
     tt$bonferroni_p <- pmin(tt$P.Value * nrow(tt), 1)
 
     p_col <- switch(p_type,
@@ -64,8 +61,7 @@ run_limma_voom <- function(combined, conditions, min_support = 2, mean_quantile 
     cmp_tag <- paste0(test, "_vs_", ref)
     results[[cmp_tag]] <- list(
       tt  = tt,
-      sig = tt[tt[[p_col]] < p_threshold & abs(tt$logFC) > lfc_threshold, ,
-               drop = FALSE]
+      sig = tt[tt[[p_col]] < p_threshold & abs(tt$logFC) > lfc_threshold, , drop = FALSE]
     )
   }
   results
@@ -187,7 +183,7 @@ differential_summary_plot <- function(tsv, pdf) {
 }
 
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
-differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, mean_quantile = 0, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
   p_type <- match.arg(p_type)
   suppressPackageStartupMessages({
     library(arrow)
@@ -259,6 +255,16 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   cm_list  <- harmonize(cm_list, "col", "pairs")
   cm_pairs <- colnames(cm_list[[1]])
 
+  # global TMM estimation
+  sample_matrix <- do.call(cbind, lapply(sample_names, function(s) {
+    as.vector(cm_list[[s]])
+  }))
+  colnames(sample_matrix) <- sample_names
+  global_norm_factors <- edgeR::calcNormFactors(
+    edgeR::DGEList(sample_matrix)
+  )$samples$norm.factors
+  names(global_norm_factors) <- sample_names
+
   # build group list
   if (is.null(col_cluster_file_path)) {
     group_list  <- as.list(setNames(cm_pairs, cm_pairs))
@@ -293,10 +299,10 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
     limma_result <- run_limma_voom(
       combined, conditions,
       min_support = min_support,
-      mean_quantile = mean_quantile,
       lfc_threshold = lfc_threshold,
       p_threshold = p_threshold,
-      p_type = p_type
+      p_type = p_type,
+      norm_factors = global_norm_factors
     )
 
     grp_result <- write_da_results(limma_result, combined, grp_name, cmp_dir_map)
@@ -307,24 +313,23 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
         sig_regions <- rownames(limma_result[[cmp_tag]]$sig)
         if (!length(sig_regions)) next
 
-        if (use_cluster) {
-          # expand back to pair level: columns = sample:pair
-          counts_out <- do.call(cbind, lapply(sample_names, function(s) {
-            m <- cm_list[[s]][sig_regions, target_pairs, drop = FALSE]
-            colnames(m) <- paste0(s, ":", colnames(m))
-            m
-          }))
-        } else {
-          # single pair: columns = sample names
-          counts_out <- combined[sig_regions, , drop = FALSE]
-        }
-
-        counts_path <- file.path(cmp_dir_map[[cmp_tag]], glue("{grp_name}_sig_counts.tsv"))
+        # log2 CPM
+        cpm_out <- limma_result$log2_cpm[sig_regions, , drop = FALSE]
+        cpm_path <- file.path(cmp_dir_map[[cmp_tag]], glue("{grp_name}_sig_log2_cpm.tsv"))
         write.table(
-          cbind(pos = rownames(counts_out), as.data.frame(counts_out)),
-          counts_path, sep = "\t", quote = FALSE, row.names = FALSE
+          cbind(pos = rownames(cpm_out), as.data.frame(cpm_out)),
+          cpm_path, sep = "\t", quote = FALSE, row.names = FALSE
         )
-        result[[cmp_tag]][[grp_name]] <- counts_path
+
+        # raw counts
+        raw_out  <- limma_result$raw_counts[sig_regions, , drop = FALSE]
+        raw_path <- file.path(cmp_dir_map[[cmp_tag]], glue("{grp_name}_sig_raw_counts.tsv"))
+        write.table(
+          cbind(pos = rownames(raw_out), as.data.frame(raw_out)),
+          raw_path, sep = "\t", quote = FALSE, row.names = FALSE
+        )
+
+        result[[cmp_tag]][[grp_name]] <- cpm_path
       }
     }
   }
@@ -343,7 +348,7 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
 
 
 # ── Public: peak-based DA (one feather per sample per pair) ─────────────────
-differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names = NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), mean_quantile = 0) {
+differential_regions_single_peak <- function(bam_path, conditions, regions, pair, sample_names = NULL, out_dir = "./", min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
   p_type <- match.arg(p_type)
   suppressPackageStartupMessages({
     library(GenomicAlignments)
@@ -458,7 +463,6 @@ differential_regions_single_peak <- function(bam_path, conditions, regions, pair
     combined,
     conditions = conditions,
     min_support = min_support,
-    mean_quantile = mean_quantile,
     lfc_threshold = lfc_threshold,
     p_threshold = p_threshold,
     p_type = p_type
