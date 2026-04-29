@@ -183,7 +183,7 @@ differential_summary_plot <- function(tsv, pdf) {
 }
 
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
-differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_method = c("tmm", "libsize")) {
   p_type <- match.arg(p_type)
   suppressPackageStartupMessages({
     library(arrow)
@@ -255,15 +255,21 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   cm_list  <- harmonize(cm_list, "col", "pairs")
   cm_pairs <- colnames(cm_list[[1]])
 
-  # global TMM estimation
-  sample_matrix <- do.call(cbind, lapply(sample_names, function(s) {
-    as.vector(cm_list[[s]])
-  }))
+  # global normalization
+  sample_matrix <- do.call(cbind, lapply(sample_names, function(s) as.vector(cm_list[[s]])))
   colnames(sample_matrix) <- sample_names
-  global_norm_factors <- edgeR::calcNormFactors(
-    edgeR::DGEList(sample_matrix)
-  )$samples$norm.factors
+
+  if (norm_method == "tmm") {
+    global_norm_factors <- edgeR::calcNormFactors(
+      edgeR::DGEList(sample_matrix), method = "TMM"
+    )$samples$norm.factors
+  } else {
+    # libsize: norm factor = 1 for all; voom will use raw lib sizes
+    global_norm_factors <- rep(1, length(sample_names))
+  }
   names(global_norm_factors) <- sample_names
+  message("Normalization: ", norm_method, " | norm factors: ",
+          paste(round(global_norm_factors, 4), collapse = ", "))
 
   # build group list
   if (is.null(col_cluster_file_path)) {
