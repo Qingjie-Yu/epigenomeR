@@ -31,7 +31,7 @@
 #     - col_num: Named integer vector with cluster numbers (1, 2, 3, ...) for each column
 #                Names are column names, ordered by optimal display order
 
-bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, col_repeats = 1, seed = 42, do_order_clusters = TRUE, cluster_distance = "euclidean", cluster_linkage = "complete", do_reorder_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL) {
+bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, col_repeats = 1, seed = 42, do_order_clusters = TRUE, cluster_distance = "euclidean", cluster_linkage = "complete", do_reorder_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL) {
   if (!is.matrix(mat)) {
     stop("Input must be a matrix, not ", class(mat)[1], call. = FALSE)
   }
@@ -111,11 +111,16 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k, row_repeats = 1, 
   names(row_letter) <- names(row_cl)
 
   # col cluster
-  set.seed(seed + 1)
-  col_cl <- consensus_kmeans(t(mat), col_k, col_repeats)
-  col_cl <- order_clusters(t(mat), col_cl, do_order_clusters)
-  names(col_cl) <- colnames(mat)
-  col_cl <- reorder_within_clusters(t(mat), col_cl, do_reorder_within_clusters)
-
+  if (is.null(col_k)) {
+    col_num <- seq_along(colnames(mat))
+    names(col_num) <- colnames(mat)
+  } else {
+    set.seed(seed + 1)
+    col_cl <- consensus_kmeans(t(mat), col_k, col_repeats)
+    col_cl <- order_clusters(t(mat), col_cl, do_order_clusters)
+    names(col_cl) <- colnames(mat)
+    col_cl <- reorder_within_clusters(t(mat), col_cl, do_reorder_within_clusters)
+  }
+  
   list(row_letter = row_letter, col_num = col_cl)
 }

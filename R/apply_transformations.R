@@ -59,15 +59,11 @@ apply_transformations <- function(cm_path, out_dir = "./", transformations = c("
       }
     } else if (t == "libnorm") {
       message("\n=== Perform Library Normalization ===")
-      original_cols <- colnames(df)
-      lib_sizes <- colSums(df)
-      zero_cols <- lib_sizes == 0 | is.na(lib_sizes)
-      if (any(zero_cols)) {
-        zero_col_names <- original_cols[zero_cols]
-        message("Removing ", length(zero_col_names), " all-zero column(s): ", paste(zero_col_names, collapse = ", "))
-        df <- df[, !zero_cols, drop = FALSE]
+      total_counts <- sum(df, na.rm = TRUE)
+      if (total_counts == 0) {
+        stop("Error: total counts across all targets is zero.")
       }
-      df <- sweep(df, 2, colSums(df), FUN = "/") * 1e6
+      df <- df / total_counts * 1e6
       message("Library normalization completed")
     } else if (t == "log2p1") {
       message("\n=== Apply log2(x+1) Transformation ===")
