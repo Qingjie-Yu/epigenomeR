@@ -120,7 +120,8 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeat
     col_cl <- order_clusters(t(mat), col_cl, do_order_clusters)
     names(col_cl) <- colnames(mat)
     col_cl <- reorder_within_clusters(t(mat), col_cl, do_reorder_within_clusters)
+    col_num <- col_cl
   }
   
-  list(row_letter = row_letter, col_num = col_cl)
+  list(row_letter = row_letter, col_num = col_num)
 }
