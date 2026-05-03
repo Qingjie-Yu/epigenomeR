@@ -19,7 +19,7 @@
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 45) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 45) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -83,9 +83,9 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     heatmap_legend_param = list(
       title            = "Z-Score",
       title_position   = "topcenter",
-      legend_direction = "horizontal",
-      legend_width     = ncol(mat) / 2 * unit(cell_width, "inches"),
-      grid_height      = 2 * unit(cell_width, "inches"),
+      legend_direction = "vertical",
+      legend_width     = unit(legend_width, "inches"),
+      grid_height      = unit(legend_height, "inches"),
       title_gp         = gpar(fontsize = legend_title_fontsize),
       labels_gp        = gpar(fontsize = legend_label_fontsize)
     )
@@ -110,6 +110,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
   message("Heatmap saved to: ", out_path)
   invisible(ht)
 }
+
 
 clustering_multi_heatmap <- function(
   crf_mat_list,             # named list of matrices, each peaks × samples, names = CRF names
