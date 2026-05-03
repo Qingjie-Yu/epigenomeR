@@ -95,9 +95,14 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
   out_path <- file.path(out_dir, pdf_name)
 
-  ht_size <- calculate_ht_size(ht, heatmap_legend_side = "right")
-  w <- if (!is.null(fig_width))  fig_width  else ht_size[[1]]
-  h <- if (!is.null(fig_height)) fig_height else ht_size[[2]]
+  pdf(NULL)
+  drawn <- draw(ht, heatmap_legend_side = "right", background = "transparent")
+  w <- convertX(ComplexHeatmap:::width(drawn),  "inches", valueOnly = TRUE)
+  h <- convertY(ComplexHeatmap:::height(drawn), "inches", valueOnly = TRUE)
+  dev.off()
+
+  if (!is.null(fig_width))  w <- fig_width
+  if (!is.null(fig_height)) h <- fig_height
 
   pdf(out_path, width = w, height = h)
   draw(ht, heatmap_legend_side = "right", background = "transparent")
