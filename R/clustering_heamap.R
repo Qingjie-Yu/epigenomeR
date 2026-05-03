@@ -202,7 +202,7 @@ clustering_multi_heatmap <- function(
   crf_mat_list,             # named list of matrices, each peaks × samples, names = CRF names
   row_cluster_file_path,    # path to row cluster .tsv (columns: region, cluster)
   out_dir = "./",
-  pdf_name = "biclustering_multi_heatmap",
+  pdf_name = "clustering_multi_heatmap",
   show_column_names = TRUE,
   column_names_rot = 45     # rotation angle for sample names
 ) {

@@ -128,7 +128,7 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
     # heatmap
     if (plot) {
       message("Generating heatmap for CRF: ", crf)
-      biclustering_heatmap(
+      clustering_heatmap(
         mat                   = mat[names(row_letter), , drop = FALSE],
         row_cluster_file_path = row_path,
         out_dir               = crf_out_dir,

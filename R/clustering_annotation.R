@@ -20,9 +20,9 @@ extract_region_to_grl <- function(row_cluster_file_path, region_col = "region", 
   row_grl
 }
 
-# Biclustering Genomic Distribution Pipeline
+# Clustering Genomic Distribution Pipeline
 #
-# Annotates biclustered genomic regions with distribution across genomic features.
+# Annotates clustered genomic regions with distribution across genomic features.
 #
 # Parameters:
 #   row_cluster_file_path:
@@ -44,7 +44,7 @@ extract_region_to_grl <- function(row_cluster_file_path, region_col = "region", 
 #     Options: "nearest", "weighted"
 #   plot:
 #     Whether to generate distribution plots. Default: TRUE
-biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "./", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
+clustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "./", distributions = c("genic", "ccre"), ref_genome = "hg38", ref_source = "knownGene", mode = "nearest", plot = TRUE) {
   # Validate parameters
   if (!ref_genome %in% c("hg38", "mm10")) {
     stop("ref_genome must be 'hg38' or 'mm10'")
@@ -79,9 +79,9 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
   message("Distribution annotation complete")
 }
 
-# Biclustering TFBS Enrichment Pipeline
+# Clustering TFBS Enrichment Pipeline
 #
-# Performs TFBS enrichment analysis for biclustered genomic regions,
+# Performs TFBS enrichment analysis for clustered genomic regions,
 # including matched control generation, enrichment testing, and heatmap visualization.
 #
 # Parameters:
@@ -110,7 +110,7 @@ biclustering_genomic_distribution <- function(row_cluster_file_path, out_dir = "
 #   all_controls.bed: control regions BED file
 #   TFBS_enrichment_cluster_<label>.tsv: enrichment results per cluster
 #   TFBS_heatmap_all.pdf, odds_ratio_log2.csv, FDR.csv: heatmap and matrices (if plot=TRUE)
-biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20, seed = 42) {
+clustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20, seed = 42) {
   # Load packages
   suppressPackageStartupMessages({
     library(data.table)
@@ -167,9 +167,9 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
   }
 }
 
-# Biclustering Pathway Annotation Pipeline
+# Clustering Pathway Annotation Pipeline
 #
-# Performs pathway enrichment analysis on biclustered genomic regions using rGREAT.
+# Performs pathway enrichment analysis on clustered genomic regions using rGREAT.
 #
 # Parameters:
 #   row_cluster_file_path:
@@ -184,7 +184,7 @@ biclustering_TFBS_enrichment <- function(row_cluster_file_path, out_dir = "./", 
 #     Gene set collection for enrichment testing. Default: "MSigDB:H"
 #   plot:
 #     Whether to generate a bubble plot. Default: TRUE
-biclustering_pathway_annotation <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", gene_sets = "MSigDB:H", plot = TRUE) {
+clustering_pathway_annotation <- function(row_cluster_file_path, out_dir = "./", ref_genome = "hg38", gene_sets = "MSigDB:H", plot = TRUE) {
   # Validate parameters
   if (!ref_genome %in% c("hg38", "mm10")) {
     stop("ref_genome must be 'hg38' or 'mm10'")
