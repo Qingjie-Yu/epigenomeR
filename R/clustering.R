@@ -1,38 +1,25 @@
-transform_crf_mat <- function(
-  mat,          # peaks × samples，已经是 log2p1 值
-  do_log2  = TRUE,
-  do_qnorm = TRUE,
-  do_zscore = TRUE
+transform_mat <- function(mat, transformations = c("log2p1", "zscore")
 ) {
-  # Step 1: log2 
-  if (do_log2) {
-    mat <- log2(mat + 1)
-  }
-
-  # Step 2: quantile normalization across samples（列方向）
-  if (do_qnorm) {
-    if (!requireNamespace("preprocessCore", quietly = TRUE)) {
-      stop("请安装 preprocessCore: BiocManager::install('preprocessCore')")
+  for (t in transformations) {
+    if (t == "libnorm") {
+      mat <- t(t(mat) / colSums(mat) * 1e6)
+    } else if (t == "log2p1") {
+      mat <- log2(mat + 1)
+    } else if (t == "qnorm") {
+      rn  <- rownames(mat)
+      cn  <- colnames(mat)
+      mat <- preprocessCore::normalize.quantiles(mat)
+      rownames(mat) <- rn
+      colnames(mat) <- cn
+    } else if (t == "zscore") {
+      mat <- t(scale(t(mat)))
+    } else {
+      warning("Unrecognized transformation: '", t, "'. Skipping!")
     }
-    rn <- rownames(mat)
-    cn <- colnames(mat)
-    mat <- preprocessCore::normalize.quantiles(mat)
-    rownames(mat) <- rn
-    colnames(mat) <- cn
   }
-
-  # Step 3: row-wise z-score（每个 peak 跨样本标准化，用于画图）
-  if (do_zscore) {
-    mat <- t(scale(t(mat)))
-  }
-
   mat
 }
 
-# Per-CRF Independent Biclustering
-# Post: For each specified CRF, independently perform row k-means clustering
-#       on the peaks x samples z-score matrix, save cluster assignments,
-#       and optionally generate a heatmap.
 # Parameters: cm_paths: character vector of feather file paths, one per sample
 #             sample_names: character vector of sample names (same order as cm_paths)
 #             row_km: number of row clusters for k-means
@@ -41,10 +28,10 @@ transform_crf_mat <- function(
 #             seed: random seed for k-means reproducibility (default: 42)
 #             plot: whether to generate heatmaps (default: TRUE)
 #             show_column_names: whether to show sample names on heatmap (default: TRUE)
-#             tsv_name: filename for cluster assignment .tsv (default: "row_clusters.tsv")
-# Output: named list of row cluster .tsv file paths, one per CRF
+#             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
+#             apply_qnorm: whether to apply quantile normalization per CRF (default: FALSE)
 
-clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE) {
+clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE, apply_filter = TRUE, apply_qnorm = FALSE) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -53,7 +40,7 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
     m <- as.matrix(df)
     mode(m) <- "numeric"
     rownames(m) <- as.character(pos)
-    m
+    transform_mat(m, transformations = c("libnorm", "log2p1"))
   })
 
   if (is.null(crf_names)) {
@@ -66,6 +53,7 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
       stop("The following CRFs are not found in all samples: ", paste(missing, collapse = ", "))
     }
   }
+  sample_list <- lapply(sample_list, function(m) m[, crf_names, drop = FALSE])
 
   # peaks × samples
   crf_mats <- lapply(crf_names, function(crf) {
@@ -75,28 +63,50 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
   })
   names(crf_mats) <- crf_names
 
-  # Transform：log2 → qnorm → row z-score
-  crf_mats_transformed <- lapply(crf_mats, function(m) {
-    transform_crf_mat(m, do_log2 = TRUE, do_qnorm = TRUE, do_zscore = TRUE)
-  })
-  names(crf_mats_transformed) <- crf_names
-  
-  bad_rows <- Reduce("|", lapply(crf_mats_transformed, function(m) {
-    apply(m, 1, function(x) any(!is.finite(x)))
-  }))
-  if (any(bad_rows)) {
-    message("Removing ", sum(bad_rows), " peaks with non-finite values across CRFs")
-    crf_mats_transformed <- lapply(crf_mats_transformed, function(m) m[!bad_rows, , drop = FALSE])
-  }
-
   # per-CRF clustering + heatmap
   row_paths <- list()
 
+  if (apply_qnorm) {
+    crf_mats <- lapply(crf_mats, function(m) {
+      transform_mat(m, transformations = c("qnorm"))
+    })
+    names(crf_mats) <- crf_names
+  }
+
   for (crf in crf_names) {
     message("Processing CRF: ", crf)
-    mat <- crf_mats_transformed[[crf]]
+    mat <- crf_mats[[crf]]
     crf_out_dir <- file.path(out_dir, crf)
     if (!dir.exists(crf_out_dir)) dir.create(crf_out_dir, recursive = TRUE, showWarnings = FALSE)
+
+    # filtering
+    if (apply_filter) {
+      tmp_path <- file.path(crf_out_dir, paste0(crf, "_transformed.feather"))
+      tmp_df <- as.data.frame(mat)
+      tmp_df$pos <- rownames(mat)
+      tmp_df <- tmp_df[, c("pos", setdiff(colnames(tmp_df), "pos"))]
+      arrow::write_feather(tmp_df, tmp_path)
+
+      filtered_path <- detect_hvr(transformed_cm_path = tmp_path, out_dir = crf_out_dir)
+      filtered_df  <- arrow::read_feather(filtered_path)
+      pos_filtered <- filtered_df$pos
+      filtered_df$pos <- NULL
+      mat <- as.matrix(filtered_df)
+      mode(mat) <- "numeric"
+      rownames(mat) <- pos_filtered
+    } else {
+      bad_rows <- apply(mat, 1, function(x) any(!is.finite(x)))
+      if (any(bad_rows)) {
+        message("Removing ", sum(bad_rows), " peaks with non-finite values")
+        mat <- mat[!bad_rows, , drop = FALSE]
+      }
+      # save cleaned matrix
+      tmp_df <- data.frame(pos = rownames(mat), as.data.frame(mat), check.names = FALSE)
+      arrow::write_feather(tmp_df, file.path(crf_out_dir, paste0(crf, "_transformed.feather")))
+    }
+
+    # z-score
+    mat <- transform_mat(mat, transformations = "zscore")
 
     # clustering
     result <- bidirectional_kmeans_clustering(
