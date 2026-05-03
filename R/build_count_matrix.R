@@ -306,7 +306,8 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
   cat("Successfully saved to: ", output_path, "\n")
 
   # Return
-  mat <- as.matrix(binChriDataframe_full[, -1])
-  rownames(mat) <- binChriDataframe_full$pos
-  invisible(list(mat = mat, path = output_path))
+  # mat <- as.matrix(binChriDataframe_full[, -1])
+  # rownames(mat) <- binChriDataframe_full$pos
+  # invisible(list(mat = mat, path = output_path))
+  return(output_path)
 }

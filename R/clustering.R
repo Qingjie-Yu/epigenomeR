@@ -9,7 +9,7 @@
 #             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
 #             apply_qnorm: whether to apply quantile normalization per CRF (default: FALSE)
 
-clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE, apply_filter = TRUE, apply_qnorm = FALSE) {
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE, apply_filter = TRUE, apply_qnorm = FALSE) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -86,7 +86,7 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
       message("Removing ", sum(bad_rows), " zero-variance rows after z-scoring")
       mat <- mat[!bad_rows, , drop = FALSE]
     }
-    
+
     # clustering
     result <- bidirectional_kmeans_clustering(
       mat = mat, row_k = row_km, col_k = NULL, seed = seed

@@ -77,7 +77,7 @@ calculate_legend_fontsize <- function(col_labels, cell_width, legend_title = "Z-
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = NULL, cell_height = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = NULL, cell_height = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL, column_names_rot = 45) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
