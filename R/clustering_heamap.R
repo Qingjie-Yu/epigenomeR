@@ -1,61 +1,3 @@
-calculate_ht_size <- function(ht, heatmap_legend_side = NULL, unit = "inch") {
-  pdf(NULL)
-  ht <- draw(ht, heatmap_legend_side = heatmap_legend_side, background = "transparent")
-  w <- ComplexHeatmap:::width(ht)
-  w <- convertX(w, unit, valueOnly = TRUE)
-  h <- ComplexHeatmap:::height(ht)
-  h <- convertY(h, unit, valueOnly = TRUE)
-  dev.off()
-  c(w, h)
-}
-
-calculate_cell_size <- function(row_labels, col_labels, row_fontsize, col_fontsize, default_cell_width = 0.5 / 2.54, default_cell_height = 0.01 / 2.54, safety_factor = 1.5, lower_quantile = 0.8, upper_quantile = 0.5) {
-
-  row_counts <- table(row_labels)
-  unique_row_labels <- names(row_counts)
-  row_text_height <- row_fontsize * safety_factor
-  lower_count_row <- quantile(row_counts, lower_quantile, type = 1)
-  min_cell_height_lower <- row_text_height / lower_count_row
-  upper_count_row <- quantile(row_counts, upper_quantile, type = 1)
-  max_cell_height_upper <- row_text_height * 4 / upper_count_row
-
-  col_counts <- table(col_labels)
-  unique_col_labels <- names(col_counts)
-  col_text_widths <- sapply(unique_col_labels, function(label) {
-    nchar(as.character(label)) * col_fontsize * 0.6 * safety_factor
-  })
-  lower_count_col <- quantile(col_counts, lower_quantile, type = 1)
-  min_cell_width_lower <- max(col_text_widths / lower_count_col)
-  upper_count_col <- quantile(col_counts, upper_quantile, type = 1)
-  max_cell_width_upper <- min(col_text_widths * 4 / upper_count_col)
-
-  if (min_cell_height_lower > max_cell_height_upper) {
-    final_cell_height <- min_cell_height_lower
-  } else {
-    final_cell_height <- max(default_cell_height, min_cell_height_lower)
-    final_cell_height <- min(final_cell_height, max_cell_height_upper)
-  }
-
-  if (min_cell_width_lower > max_cell_width_upper) {
-    final_cell_width <- min_cell_width_lower
-  } else {
-    final_cell_width <- max(default_cell_width, min_cell_width_lower)
-    final_cell_width <- min(final_cell_width, max_cell_width_upper)
-  }
-
-  list(
-    cell_width  = final_cell_width,
-    cell_height = final_cell_height
-  )
-}
-
-calculate_legend_fontsize <- function(col_labels, cell_width, legend_title = "Z-Score", safety_factor = 1.2) {
-  available_width_inch <- length(col_labels) * cell_width * safety_factor
-  title_chars <- nchar(legend_title)
-  max_title_fontsize <- available_width_inch / (title_chars * 0.2) * 2.54
-  max_title_fontsize
-}
-
 # Clustering Heatmap Visualization
 # Post: Create a heatmap with predefined row clustering assignments.
 #       Automatically calculates optimal cell sizes based on label dimensions.
@@ -77,7 +19,7 @@ calculate_legend_fontsize <- function(col_labels, cell_width, legend_title = "Z-
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = NULL, cell_height = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL, column_names_rot = 45) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 45) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -93,53 +35,24 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     library(tools)
   })
 
-  # Font size defaults
-  if (is.null(row_title_fontsize))    row_title_fontsize    <- 8
-  if (is.null(col_title_fontsize))    col_title_fontsize    <- 8
-  if (is.null(legend_label_fontsize)) legend_label_fontsize <- 6
-
   # Load row cluster info
   row_cluster <- read.table(row_cluster_file_path, header = TRUE, sep = "\t", row.names = NULL)
   row_cluster <- row_cluster[row_cluster$region %in% rownames(mat), ]
   row_order   <- row_cluster$region
   row_split   <- row_cluster$cluster
+  mat         <- mat[row_order, , drop = FALSE]
 
-  mat <- mat[row_order, , drop = FALSE]
-
-  # Color scale: blue → white → red (diverging)
-  lo  <- min(mat, na.rm = TRUE)
-  hi  <- max(mat, na.rm = TRUE)
-  avg <- (lo + hi) / 2
+  # Color scale: blue → white → red
+  lo      <- min(mat, na.rm = TRUE)
+  hi      <- max(mat, na.rm = TRUE)
+  avg     <- (lo + hi) / 2
   col_fun <- colorRamp2(c(lo, avg, hi), c("#3155C3", "white", "#AF0525"))
-
-  # Cell size
-  if (is.null(cell_width) || is.null(cell_height)) {
-    cell_size <- calculate_cell_size(
-      row_labels   = row_split,
-      col_labels   = colnames(mat),
-      row_fontsize = row_title_fontsize,
-      col_fontsize = col_title_fontsize
-    )
-    if (is.null(cell_width))  cell_width  <- cell_size$cell_width
-    if (is.null(cell_height)) cell_height <- cell_size$cell_height
-  }
-
-  # Legend font size
-  max_legend_title_fontsize <- calculate_legend_fontsize(
-    col_labels      = colnames(mat),
-    cell_width = cell_width,
-    legend_title    = "Z-Score"
-  )
-  if (is.null(legend_title_fontsize)) {
-    legend_title_fontsize <- min(legend_label_fontsize, max_legend_title_fontsize)
-  }
 
   # Build heatmap
   ht <- Heatmap(
     mat,
     col = col_fun,
 
-    # Clustering setting
     cluster_columns    = FALSE,
     cluster_rows       = FALSE,
     cluster_row_slices = FALSE,
@@ -150,7 +63,6 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     show_row_dend      = FALSE,
     show_column_dend   = FALSE,
 
-    # General setting
     width             = ncol(mat) * unit(cell_width,  "inches"),
     height            = nrow(mat) * unit(cell_height, "inches"),
     row_gap           = unit(1, "mm"),
@@ -164,12 +76,10 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     row_title_rot     = 0,
     use_raster        = TRUE,
 
-    # Cell setting
     border    = TRUE,
     rect_gp   = gpar(col = NA, lwd = 0),
     border_gp = gpar(col = "white", lwd = 0),
 
-    # Legend setting
     heatmap_legend_param = list(
       title            = "Z-Score",
       title_position   = "topcenter",
@@ -181,15 +91,13 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     )
   )
 
-  # Auto-size and save PDF
+  # Save PDF
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
   out_path <- file.path(out_dir, pdf_name)
 
   ht_size <- calculate_ht_size(ht, heatmap_legend_side = "right")
-  w <- ht_size[[1]]
-  h <- ht_size[[2]]
-  if (!is.null(fig_width))  w <- fig_width
-  if (!is.null(fig_height)) h <- fig_height
+  w <- if (!is.null(fig_width))  fig_width  else ht_size[[1]]
+  h <- if (!is.null(fig_height)) fig_height else ht_size[[2]]
 
   pdf(out_path, width = w, height = h)
   draw(ht, heatmap_legend_side = "right", background = "transparent")
