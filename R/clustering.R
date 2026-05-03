@@ -9,7 +9,10 @@
 #             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
 #             apply_qnorm: whether to apply quantile normalization per CRF (default: FALSE)
 
-clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE, apply_filter = TRUE, apply_qnorm = FALSE) {
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, apply_qnorm = FALSE, cluster_method = c("kmeans", "correlation"), plot = TRUE, show_column_names = TRUE) {
+
+  cluster_method <- match.arg(cluster_method)
+
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -79,19 +82,20 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
       arrow::write_feather(tmp_df, file.path(crf_out_dir, paste0(crf, "_transformed.feather")))
     }
 
-    # z-score
-    mat <- transform_mat(mat, transformations = "zscore")
-    bad_rows <- apply(mat, 1, function(x) any(!is.finite(x)))
-    if (any(bad_rows)) {
-      message("Removing ", sum(bad_rows), " zero-variance rows after z-scoring")
-      mat <- mat[!bad_rows, , drop = FALSE]
-    }
-
     # clustering
-    result <- bidirectional_kmeans_clustering(
-      mat = mat, row_k = row_km, col_k = NULL, seed = seed
+    result <- bidirectional_clustering(
+      mat = mat, row_k = row_km, col_k = NULL, seed = seed, cluster_method = cluster_method
     )
     row_letter <- result$row_letter
+
+    # zscore and remove zero-variance rows
+    mat_z <- transform_mat(mat[names(row_letter), , drop = FALSE], transformations = "zscore")
+    bad_z <- apply(mat_z, 1, function(x) any(!is.finite(x)))
+    if (any(bad_z)) {
+      warning("Removing ", sum(bad_z), " zero-variance rows after z-scoring")
+      mat_z <- mat_z[!bad_z, , drop = FALSE]
+      row_letter <- row_letter[rownames(mat_z)]
+    }
 
     # save cluster assignments
     df_row <- data.frame(
@@ -108,7 +112,7 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     if (plot) {
       message("Generating heatmap for CRF: ", crf)
       clustering_heatmap(
-        mat                   = mat[names(row_letter), , drop = FALSE],
+        mat                   = mat_z,
         row_cluster_file_path = row_path,
         out_dir               = crf_out_dir,
         pdf_name              = paste0(crf, ".pdf"),

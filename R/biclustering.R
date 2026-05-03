@@ -25,10 +25,15 @@
 #              - "col_table": Path to the saved column cluster assignment table (`col_table.tsv`).
 #             (Cluster tables and heatmap files are written to `out_dir`.)
 
-biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
-  library(arrow)
-  library(tibble)
-  library(dplyr)
+biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_method = c("kmeans", "correlation"), plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
+  # Load Library
+  suppressPackageStartupMessages({
+    library(tibble)
+    library(arrow)
+    library(dplyr)
+  })
+
+  cluster_method <- match.arg(cluster_method)
 
   if (is.null(cm_path) || length(cm_path) == 0) {
     stop("`count_matrix_file_path` is required", call. = FALSE)
@@ -44,7 +49,7 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   col_km <- min(col_km, ncol(mat))
 
   message("Performing bidirectional k-means clustering...")
-  result <- bidirectional_kmeans_clustering(mat = mat, row_k = row_km, col_k = col_km, seed = seed)
+  result <- bidirectional_clustering(mat = mat, row_k = row_km, col_k = col_km, seed = seed, cluster_method = cluster_method)
   row_letter <- result$row_letter
   col_num <- result$col_num
 
@@ -76,76 +81,4 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, plot = TRU
   }
 
   return(list("row_table" = path1, "col_table" = path2))
-}
-
-biclustering_by_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, plot = TRUE, show_column_names = TRUE) {
-  # peaks × CRFs
-  sample_list <- lapply(seq_along(cm_paths), function(j) {
-    df <- arrow::read_feather(cm_paths[j])
-    pos <- df$pos
-    df$pos <- NULL
-    m <- as.matrix(df)
-    mode(m) <- "numeric"
-    rownames(m) <- as.character(pos)
-    m
-  })
-
-  if (is.null(crf_names)) {
-    common_crfs <- Reduce(intersect, lapply(sample_list, colnames))
-    crf_names <- sort(common_crfs)
-  }
-  sample_list <- lapply(sample_list, function(m) m[, crf_names, drop = FALSE])
-
-  # peaks × samples
-  crf_mats <- lapply(crf_names, function(crf) {
-    m <- sapply(sample_list, function(s) s[, crf])
-    colnames(m) <- sample_names
-    m
-  })
-  names(crf_mats) <- crf_names
-
-  # per-(sample,CRF) Z-score
-  crf_mats_z_orig <- lapply(crf_mats, function(m) {
-    scale(m)
-  })
-  names(crf_mats_z_orig) <- crf_names
-  crf_mats_z <- lapply(seq_along(crf_mats_z_orig), function(k) {
-    m <- crf_mats_z_orig[[k]]
-    colnames(m) <- paste0(crf_names[k], "_", colnames(m))
-    m
-  })
-  mat_concat <- do.call(cbind, crf_mats_z)
-
-  # clustering
-  result <- bidirectional_kmeans_clustering(
-    mat = mat_concat, row_k = row_km, col_k = NULL, seed = seed
-  )
-  row_letter <- result$row_letter
-
-  df_row <- data.frame(
-    region = names(row_letter),
-    cluster = unname(row_letter),
-    stringsAsFactors = FALSE
-  )
-  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-  row_path <- file.path(out_dir, "row_table.tsv")
-  write.table(df_row, row_path, sep = "\t", quote = FALSE, row.names = FALSE)
-  message("Saved cluster assignments to:", row_path)
-
-  # multi-heatmap
-  if (plot) {
-    message("Generating heatmap...")
-    # restore original (non-prefixed) crf_mats_z for plotting
-    crf_mats_plot <- lapply(crf_mats_z_orig, function(m) {
-      m[names(row_letter), , drop = FALSE]
-    })
-    biclustering_multi_heatmap(
-      crf_mat_list          = crf_mats_plot,
-      row_cluster_file_path = row_path,
-      out_dir               = out_dir,
-      show_column_names     = show_column_names
-    )
-  }
-
-  return(row_path)
 }
