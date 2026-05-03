@@ -1,25 +1,3 @@
-transform_mat <- function(mat, transformations = c("log2p1", "zscore")
-) {
-  for (t in transformations) {
-    if (t == "libnorm") {
-      mat <- t(t(mat) / colSums(mat) * 1e6)
-    } else if (t == "log2p1") {
-      mat <- log2(mat + 1)
-    } else if (t == "qnorm") {
-      rn  <- rownames(mat)
-      cn  <- colnames(mat)
-      mat <- preprocessCore::normalize.quantiles(mat)
-      rownames(mat) <- rn
-      colnames(mat) <- cn
-    } else if (t == "zscore") {
-      mat <- t(scale(t(mat)))
-    } else {
-      warning("Unrecognized transformation: '", t, "'. Skipping!")
-    }
-  }
-  mat
-}
-
 # Parameters: cm_paths: character vector of feather file paths, one per sample
 #             sample_names: character vector of sample names (same order as cm_paths)
 #             row_km: number of row clusters for k-means
@@ -63,15 +41,16 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
   })
   names(crf_mats) <- crf_names
 
-  # per-CRF clustering + heatmap
-  row_paths <- list()
-
+  # optional quantile normalization
   if (apply_qnorm) {
     crf_mats <- lapply(crf_mats, function(m) {
       transform_mat(m, transformations = c("qnorm"))
     })
     names(crf_mats) <- crf_names
   }
+
+  # per-CRF clustering + heatmap
+  row_paths <- list()
 
   for (crf in crf_names) {
     message("Processing CRF: ", crf)
@@ -95,11 +74,6 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
       mode(mat) <- "numeric"
       rownames(mat) <- pos_filtered
     } else {
-      bad_rows <- apply(mat, 1, function(x) any(!is.finite(x)))
-      if (any(bad_rows)) {
-        message("Removing ", sum(bad_rows), " peaks with non-finite values")
-        mat <- mat[!bad_rows, , drop = FALSE]
-      }
       # save cleaned matrix
       tmp_df <- data.frame(pos = rownames(mat), as.data.frame(mat), check.names = FALSE)
       arrow::write_feather(tmp_df, file.path(crf_out_dir, paste0(crf, "_transformed.feather")))
@@ -107,7 +81,12 @@ clustering_single_crf <- function(cm_paths, sample_names, row_km, out_dir, crf_n
 
     # z-score
     mat <- transform_mat(mat, transformations = "zscore")
-
+    bad_rows <- apply(mat, 1, function(x) any(!is.finite(x)))
+    if (any(bad_rows)) {
+      message("Removing ", sum(bad_rows), " zero-variance rows after z-scoring")
+      mat <- mat[!bad_rows, , drop = FALSE]
+    }
+    
     # clustering
     result <- bidirectional_kmeans_clustering(
       mat = mat, row_k = row_km, col_k = NULL, seed = seed
