@@ -19,7 +19,7 @@
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 45) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 60) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -68,9 +68,9 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     row_gap           = unit(1, "mm"),
     column_gap        = unit(1, "mm"),
     row_title_gp      = gpar(fontsize = row_title_fontsize),
-    column_title_gp   = gpar(fontsize = col_title_fontsize),
     show_row_names    = FALSE,
     show_column_names = show_column_names,
+    column_names_gp = gpar(fontsize = col_title_fontsize),
     column_names_rot  = column_names_rot,
     column_labels     = TeX(colnames(mat)),
     row_title_rot     = 0,
