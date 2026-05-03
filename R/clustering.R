@@ -99,7 +99,7 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
       cluster = unname(row_letter),
       stringsAsFactors = FALSE
     )
-    row_path <- file.path(out_dir, paste0(crf, ".tsv"))
+    row_path <- file.path(crf_out_dir, paste0(crf, ".tsv"))
     write.table(df_row, row_path, sep = "\t", quote = FALSE, row.names = FALSE)
     message("Saved cluster assignments to: ", row_path)
     row_paths[[crf]] <- row_path
