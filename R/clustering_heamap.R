@@ -19,7 +19,7 @@
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 60) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_column_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, column_names_rot = 60) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -43,9 +43,9 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
   mat         <- mat[row_order, , drop = FALSE]
 
   # Color scale: blue → white → red
-  lo      <- min(mat, na.rm = TRUE)
-  hi      <- max(mat, na.rm = TRUE)
-  avg     <- (lo + hi) / 2
+  lo  <- if (is.null(lower_range)) quantile(mat, 0.01, na.rm = TRUE) else lower_range
+  hi  <- if (is.null(upper_range)) quantile(mat, 0.99, na.rm = TRUE) else upper_range
+  avg <- (lo + hi) / 2
   col_fun <- colorRamp2(c(lo, avg, hi), c("#3155C3", "white", "#AF0525"))
 
   # Build heatmap
@@ -81,7 +81,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     border_gp = gpar(col = "white", lwd = 0),
 
     heatmap_legend_param = list(
-      title            = "Z-Score",
+      title            = legend_title,
       title_position   = "topcenter",
       legend_direction = "vertical",
       legend_width     = unit(legend_width, "inches"),

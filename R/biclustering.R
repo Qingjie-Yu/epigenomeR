@@ -41,7 +41,7 @@
 #              - "col_table": Path to the saved column cluster assignment table (`col_table.tsv`).
 #             (Cluster tables and heatmap files are written to `out_dir`.)
 
-biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_method = c("kmeans", "correlation"), order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
+biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
   # Load Library
   suppressPackageStartupMessages({
     library(tibble)
@@ -65,11 +65,10 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_me
   col_km <- min(col_km, ncol(mat))
 
   message("Performing bidirectional k-means clustering...")
-  result <- bidirectional_clustering(
+  result <- bidirectional_kmeans_clustering(
     mat = mat, 
     row_k = row_km, col_k = col_km, 
     seed = seed, 
-    cluster_method = cluster_method, 
     order_clusters = order_clusters, cluster_linkage = cluster_linkage, 
     order_within_clusters = order_within_clusters, feature_distance = feature_distance, feature_linkage = feature_linkage
   )

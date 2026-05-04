@@ -5,15 +5,21 @@
 #             crf_names: character vector of CRF names to analyze (default: NULL = all common CRFs)
 #             seed: random seed for k-means reproducibility (default: 42)
 #             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
+#             order_clusters: whether to hierarchically order clusters by centroid similarity (default: TRUE)
+#             cluster_linkage: linkage method for hierarchical ordering of clusters (default: "complete")
+#             order_within_clusters: whether to reorder features within each cluster using hierarchical clustering (default: TRUE)
+#             feature_distance: distance metric for within-cluster feature reordering (default: "euclidean")
+#             feature_linkage: linkage method for within-cluster feature reordering (default: "complete")
+#             plot: whether to generate heatmaps (default: TRUE)
 #             apply_zscore: whether to z-score rows before plotting heatmap (default: TRUE).
 #                           When TRUE, heatmap colors reflect relative differences across samples per region.
 #                           When FALSE, heatmap colors reflect absolute normalized (libnorm + log2p1) values,
 #                           which better reveals the magnitude of signal changes across samples.
-#             cluster_method: clustering method, either "kmeans" or "correlation" (default: "kmeans")
-#             plot: whether to generate heatmaps (default: TRUE)
 #             show_column_names: whether to show sample names on heatmap (default: TRUE)
+#            lower_range: lower bound for heatmap color scale (default: NULL, auto-calculated)
+#            upper_range: upper bound for heatmap color scale (default: NULL, auto-calculated)
 
-clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, cluster_method = "correlation", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE) {
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE, lower_range = NULL, upper_range = NULL) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -76,8 +82,8 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     }
 
     # clustering
-    result <- bidirectional_clustering(
-      mat = mat, row_k = row_km, col_k = NULL, seed = seed, cluster_method = cluster_method, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = order_within_clusters, feature_distance = feature_distance, feature_linkage = feature_linkage
+    result <- bidirectional_correlation_clustering(
+      mat = mat, row_k = row_km, col_k = NULL, seed = seed, order_clusters = order_clusters, cluster_linkage = cluster_linkage, order_within_clusters = order_within_clusters, feature_distance = feature_distance, feature_linkage = feature_linkage
     )
     row_letter <- result$row_letter
 
@@ -90,8 +96,10 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
         mat_plot <- mat_plot[!bad_z, , drop = FALSE]
         row_letter <- row_letter[rownames(mat_plot)]
       }
+      legend_title <- "Z-Score"
     } else {
       mat_plot <- mat[names(row_letter), , drop = FALSE]
+      legend_title <- "log2(cpm)"
     }
 
     # save cluster assignments
@@ -108,11 +116,14 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     if (plot) {
       message("Generating heatmap for CRF: ", crf)
       clustering_heatmap(
-        mat                   = mat_plot,
+        mat = mat_plot,
         row_cluster_file_path = row_path,
-        out_dir               = crf_out_dir,
-        pdf_name              = paste0(crf, ".pdf"),
-        show_column_names     = show_column_names
+        out_dir = crf_out_dir,
+        pdf_name = paste0(crf, ".pdf"),
+        show_column_names = show_column_names,
+        lower_range = lower_range,
+        upper_range = upper_range,
+        legend_title = legend_title
       )
     }
   }
