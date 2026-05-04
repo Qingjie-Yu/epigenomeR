@@ -1,4 +1,4 @@
-clustering_wrapper <- function(cm_paths, row_km, out_dir, sample_names, crf_names = NULL, apply_filter = TRUE, seed = 42, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre")) {
+clustering_wrapper <- function(cm_paths, row_km, out_dir, sample_names, crf_names = NULL, apply_filter = TRUE, seed = 42, feature_distance = NULL, apply_zscore = TRUE, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre")) {
   # Clustering
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  Clustering")
@@ -11,7 +11,9 @@ clustering_wrapper <- function(cm_paths, row_km, out_dir, sample_names, crf_name
     out_dir               = out_dir,
     crf_names             = crf_names,
     seed                  = seed,
-    apply_filter          = apply_filter
+    apply_filter          = apply_filter,
+    feature_distance      = feature_distance,
+    apply_zscore          = apply_zscore
   )
 
   # Annotation
