@@ -11,7 +11,6 @@
 #              col_km: Number of clusters for columns (samples).
 #              out_dir: Directory to save cluster tables and heatmap output.
 #              seed: Random seed for reproducible clustering (default: 42).
-#              cluster_method: Clustering method for both rows and columns (default: "kmeans").
 #                              "kmeans": consensus k-means with euclidean distance.
 #                              "correlation": hierarchical clustering with 1 - Pearson
 #                                             correlation distance, using average linkage.
@@ -48,8 +47,6 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, order_clus
     library(arrow)
     library(dplyr)
   })
-
-  cluster_method <- match.arg(cluster_method)
 
   if (is.null(cm_path) || length(cm_path) == 0) {
     stop("`count_matrix_file_path` is required", call. = FALSE)
