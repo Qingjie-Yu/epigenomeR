@@ -59,11 +59,11 @@ apply_transformations <- function(cm_path, out_dir = "./", transformations = c("
       }
     } else if (t == "libnorm") {
       message("\n=== Perform Library Normalization ===")
-      total_counts <- sum(df, na.rm = TRUE)
-      if (total_counts == 0) {
-        stop("Error: total counts across all targets is zero.")
+      col_sums <- colSums(df, na.rm = TRUE)
+      if (any(col_sums == 0)) {
+        stop("Error: one or more samples have zero total counts.")
       }
-      df <- df / total_counts * 1e6
+      df <- t(t(df) / col_sums * 1e6)
       message("Library normalization completed")
     } else if (t == "log2p1") {
       message("\n=== Apply log2(x+1) Transformation ===")
