@@ -1,4 +1,4 @@
-differential_analysis <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, ref_genome = "hg38", min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_level = c("global", "crf"), apply_annotation = TRUE, plot = TRUE) {
+differential_analysis <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, ref_genome = "hg38", min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_level = c("crf", "global"), apply_annotation = TRUE, plot = TRUE) {
   norm_level <- match.arg(norm_level)
   p_type <- match.arg(p_type)
   

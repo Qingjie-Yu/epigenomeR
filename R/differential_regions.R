@@ -183,7 +183,7 @@ differential_summary_plot <- function(tsv, pdf) {
 }
 
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
-differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_level = c("global", "crf")) {
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_level = c("crf", "global")) {
   p_type <- match.arg(p_type)
   norm_level <- match.arg(norm_level)
   
