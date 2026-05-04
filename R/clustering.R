@@ -13,7 +13,7 @@
 #             plot: whether to generate heatmaps (default: TRUE)
 #             show_column_names: whether to show sample names on heatmap (default: TRUE)
 
-clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, cluster_method = "correlation", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE) {
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, cluster_method = "correlation", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -77,7 +77,7 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
 
     # clustering
     result <- bidirectional_clustering(
-      mat = mat, row_k = row_km, col_k = NULL, seed = seed, cluster_method = cluster_method
+      mat = mat, row_k = row_km, col_k = NULL, seed = seed, cluster_method = cluster_method, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = order_within_clusters, feature_distance = feature_distance, feature_linkage = feature_linkage
     )
     row_letter <- result$row_letter
 
