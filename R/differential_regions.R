@@ -183,9 +183,9 @@ differential_summary_plot <- function(tsv, pdf) {
 }
 
 # ── Public: conventional DA (one feather per sample, columns = pairs) ───────
-differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_method = c("tmm", "libsize")) {
+differential_regions <- function(cm_path, conditions, sample_names = NULL, out_dir = "./", col_cluster_file_path = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni"), norm_level = c("global", "crf")) {
   p_type <- match.arg(p_type)
-  norm_method <- match.arg(norm_method) 
+  norm_level <- match.arg(norm_level)
   
   suppressPackageStartupMessages({
     library(arrow)
@@ -261,18 +261,17 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
   sample_matrix <- do.call(cbind, lapply(sample_names, function(s) as.vector(cm_list[[s]])))
   colnames(sample_matrix) <- sample_names
 
-  if (norm_method == "tmm") {
-    global_norm_factors <- edgeR::calcNormFactors(
+  if (norm_level == "global") {
+    norm_factors <- edgeR::calcNormFactors(
       edgeR::DGEList(sample_matrix), method = "TMM"
     )$samples$norm.factors
+    names(norm_factors) <- sample_names
+    message("TMM norm factors (global): ", paste(round(norm_factors, 4), collapse = ", "))
   } else {
-    # libsize: norm factor = 1 for all; voom will use raw lib sizes
-    global_norm_factors <- rep(1, length(sample_names))
+    norm_factors <- NULL
+    message("TMM norm factors: per-CRF (computed inside run_limma_voom)")
   }
-  names(global_norm_factors) <- sample_names
-  message("Normalization: ", norm_method, " | norm factors: ",
-          paste(round(global_norm_factors, 4), collapse = ", "))
-
+  
   # build group list
   if (is.null(col_cluster_file_path)) {
     group_list  <- as.list(setNames(cm_pairs, cm_pairs))
@@ -310,7 +309,7 @@ differential_regions <- function(cm_path, conditions, sample_names = NULL, out_d
       lfc_threshold = lfc_threshold,
       p_threshold = p_threshold,
       p_type = p_type,
-      norm_factors = global_norm_factors
+      norm_factors = norm_factors
     )
 
     grp_result <- write_da_results(limma_result, combined, grp_name, cmp_dir_map)
