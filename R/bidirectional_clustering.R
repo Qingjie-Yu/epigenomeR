@@ -16,6 +16,7 @@
 #                   "correlation": hierarchical clustering with 1 - pearson correlation distance
 #   order_clusters: Whether to hierarchically order clusters (default: TRUE)
 #                     If FALSE, clusters are ordered by mean expression
+#  cluster_linkage: Linkage method for hierarchical ordering of clusters (default: "complete")
 #   order_within_clusters: Whether to reorder features within each cluster (default: TRUE)
 #                          If FALSE, features maintain their original order within clusters
 #   feature_distance: Distance measure for within-cluster feature reordering (default: "euclidean")
@@ -28,7 +29,7 @@
 #     - col_num: Named integer vector with cluster numbers (1, 2, 3, ...) for each column
 #                Names are column names, ordered by optimal display order
 
-bidirectional_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, col_repeats = 1, seed = 42, cluster_method = c("kmeans", "correlation"), order_clusters = TRUE, order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete") {
+bidirectional_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, col_repeats = 1, seed = 42, cluster_method = c("kmeans", "correlation"), order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete") {
   if (!is.matrix(mat)) {
     stop("Input must be a matrix, not ", class(mat)[1], call. = FALSE)
   }
@@ -63,7 +64,7 @@ bidirectional_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, 
     if (!do_order) {
       new_order <- order(colMeans(cluster_mean))
     } else {
-      hc    <- hclust(get_dist(t(cluster_mean)))
+      hc    <- hclust(get_dist(t(cluster_mean)), method = cluster_linkage)
       dend  <- reorder(as.dendrogram(hc), colMeans(cluster_mean), mean)
       new_order <- order.dendrogram(dend)
     }
@@ -98,7 +99,7 @@ bidirectional_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, 
       row_cl <- do_consensus_kmeans(mat, row_k, row_repeats)
     } else {
       d      <- get_dist(mat)
-      hc     <- hclust(d, method = "average")
+      hc     <- hclust(d, method = cluster_linkage)
       row_cl <- cutree(hc, k = row_k)
     }
     row_cl <- do_order_clusters(mat, row_cl, order_clusters)
@@ -119,7 +120,7 @@ bidirectional_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, 
       col_cl <- do_consensus_kmeans(t(mat), col_k, col_repeats)
     } else {
       d      <- get_dist(t(mat))
-      hc     <- hclust(d, method = "average")
+      hc     <- hclust(d, method = cluster_linkage)
       col_cl <- cutree(hc, k = col_k)
     }
     col_cl <- do_order_clusters(t(mat), col_cl, order_clusters)

@@ -1,21 +1,37 @@
-# Automatically performs k-means clustering, generates cluster files internally, and draw heatmap
+# Automatically performs clustering, generates cluster files internally, and draws heatmap
 # Description: This function reads a count matrix from a `.feather` file, performs
-#              k-means clustering on both rows (genomic features) and columns (samples),
+#              bidirectional clustering on both rows (genomic features) and columns (samples),
 #              saves the cluster assignments, and optionally generates a publication-ready
-#              heatmap in a single workflow.
+#              heatmap in a single workflow. Supports two clustering methods: consensus k-means
+#              with euclidean distance, or hierarchical clustering with 1 - Pearson correlation
+#              distance.
 # Parameters:  cm_path: Path to count matrix `.feather` file
 #                        (must contain a `pos` column for feature IDs and sample columns).
-#              row_km: Number of k-means clusters for rows (genomic features).
-#              col_km: Number of k-means clusters for columns (samples).
+#              row_km: Number of clusters for rows (genomic features).
+#              col_km: Number of clusters for columns (samples).
 #              out_dir: Directory to save cluster tables and heatmap output.
 #              seed: Random seed for reproducible clustering (default: 42).
+#              cluster_method: Clustering method for both rows and columns (default: "kmeans").
+#                              "kmeans": consensus k-means with euclidean distance.
+#                              "correlation": hierarchical clustering with 1 - Pearson
+#                                             correlation distance, using average linkage.
+#              order_clusters: Whether to hierarchically order clusters by centroid similarity
+#                              (default: TRUE). If FALSE, clusters are ordered by mean expression.
+#              cluster_linkage: Linkage method for hierarchical ordering of clusters (default: "complete").
+#              order_within_clusters: Whether to reorder features within each cluster using
+#                                     hierarchical clustering (default: TRUE). If FALSE,
+#                                     features maintain their original order within clusters.
+#              feature_distance: Distance metric for within-cluster feature reordering
+#                                (default: "euclidean"). Any method accepted by dist() is valid.
+#              feature_linkage: Linkage method for within-cluster feature reordering
+#                               (default: "complete"). Any method accepted by hclust() is valid.
 #              plot: Whether to generate a heatmap plot (default: TRUE).
 #              show_column_names: Whether to show column names at the bottom of the
 #                                 heatmap (default: FALSE).
 #              lower_range: Lower bound for the heatmap color scale
-#                          (default: NULL, automatically determined).
+#                           (default: NULL, automatically determined).
 #              upper_range: Upper bound for the heatmap color scale
-#                          (default: NULL, automatically determined).
+#                           (default: NULL, automatically determined).
 #              row_title_fontsize: Font size for row cluster titles (default: NULL).
 #              col_title_fontsize: Font size for column cluster titles (default: NULL).
 #              legend_title_fontsize: Font size for the legend title (default: NULL).
@@ -25,7 +41,7 @@
 #              - "col_table": Path to the saved column cluster assignment table (`col_table.tsv`).
 #             (Cluster tables and heatmap files are written to `out_dir`.)
 
-biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_method = c("kmeans", "correlation"), plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
+biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_method = c("kmeans", "correlation"), order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, show_column_names = FALSE, lower_range = NULL, upper_range = NULL, row_title_fontsize = NULL, col_title_fontsize = NULL, legend_title_fontsize = NULL, legend_label_fontsize = NULL) {
   # Load Library
   suppressPackageStartupMessages({
     library(tibble)
@@ -49,7 +65,14 @@ biclustering <- function(cm_path, row_km, col_km, out_dir, seed = 42, cluster_me
   col_km <- min(col_km, ncol(mat))
 
   message("Performing bidirectional k-means clustering...")
-  result <- bidirectional_clustering(mat = mat, row_k = row_km, col_k = col_km, seed = seed, cluster_method = cluster_method)
+  result <- bidirectional_clustering(
+    mat = mat, 
+    row_k = row_km, col_k = col_km, 
+    seed = seed, 
+    cluster_method = cluster_method, 
+    order_clusters = order_clusters, cluster_linkage = cluster_linkage, 
+    order_within_clusters = order_within_clusters, feature_distance = feature_distance, feature_linkage = feature_linkage
+  )
   row_letter <- result$row_letter
   col_num <- result$col_num
 
