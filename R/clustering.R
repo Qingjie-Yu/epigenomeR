@@ -4,15 +4,16 @@
 #             out_dir: root output directory; each CRF gets a subdirectory
 #             crf_names: character vector of CRF names to analyze (default: NULL = all common CRFs)
 #             seed: random seed for k-means reproducibility (default: 42)
+#             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
+#             apply_zscore: whether to z-score rows before plotting heatmap (default: TRUE).
+#                           When TRUE, heatmap colors reflect relative differences across samples per region.
+#                           When FALSE, heatmap colors reflect absolute normalized (libnorm + log2p1) values,
+#                           which better reveals the magnitude of signal changes across samples.
+#             cluster_method: clustering method, either "kmeans" or "correlation" (default: "kmeans")
 #             plot: whether to generate heatmaps (default: TRUE)
 #             show_column_names: whether to show sample names on heatmap (default: TRUE)
-#             apply_filter: whether to apply HVR filtering before clustering (default: TRUE)
-#             apply_qnorm: whether to apply quantile normalization per CRF (default: FALSE)
 
-clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, apply_qnorm = FALSE, cluster_method = c("kmeans", "correlation"), plot = TRUE, show_column_names = TRUE) {
-
-  cluster_method <- match.arg(cluster_method)
-
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, cluster_method = "correlation", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
@@ -43,14 +44,6 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     m
   })
   names(crf_mats) <- crf_names
-
-  # optional quantile normalization
-  if (apply_qnorm) {
-    crf_mats <- lapply(crf_mats, function(m) {
-      transform_mat(m, transformations = c("qnorm"))
-    })
-    names(crf_mats) <- crf_names
-  }
 
   # per-CRF clustering + heatmap
   row_paths <- list()
@@ -88,13 +81,17 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     )
     row_letter <- result$row_letter
 
-    # zscore and remove zero-variance rows
-    mat_z <- transform_mat(mat[names(row_letter), , drop = FALSE], transformations = "zscore")
-    bad_z <- apply(mat_z, 1, function(x) any(!is.finite(x)))
-    if (any(bad_z)) {
-      warning("Removing ", sum(bad_z), " zero-variance rows after z-scoring")
-      mat_z <- mat_z[!bad_z, , drop = FALSE]
-      row_letter <- row_letter[rownames(mat_z)]
+    # optional zscore for heatmap
+    if (apply_zscore) {
+      mat_plot <- transform_mat(mat[names(row_letter), , drop = FALSE], transformations = "zscore")
+      bad_z <- apply(mat_plot, 1, function(x) any(!is.finite(x)))
+      if (any(bad_z)) {
+        warning("Removing ", sum(bad_z), " zero-variance rows after z-scoring")
+        mat_plot <- mat_plot[!bad_z, , drop = FALSE]
+        row_letter <- row_letter[rownames(mat_plot)]
+      }
+    } else {
+      mat_plot <- mat[names(row_letter), , drop = FALSE]
     }
 
     # save cluster assignments
@@ -108,11 +105,10 @@ clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL
     message("Saved cluster assignments to: ", row_path)
     row_paths[[crf]] <- row_path
 
-    # heatmap
     if (plot) {
       message("Generating heatmap for CRF: ", crf)
       clustering_heatmap(
-        mat                   = mat_z,
+        mat                   = mat_plot,
         row_cluster_file_path = row_path,
         out_dir               = crf_out_dir,
         pdf_name              = paste0(crf, ".pdf"),
