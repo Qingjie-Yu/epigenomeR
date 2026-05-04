@@ -31,8 +31,9 @@ do_order_clusters <- function(m, cl, do_order, dist_fn, cluster_linkage) {
   match(cl, unique_cl[new_order])
 }
 
-do_order_within_clusters <- function(m, cl, do_reorder, feature_distance, feature_linkage) {
+do_order_within_clusters <- function(m, cl, do_reorder, dist_fn, feature_distance = NULL, feature_linkage) {
   weights     <- -rowMeans(m, na.rm = TRUE)
+  d_fn        <- if (is.null(feature_distance)) dist_fn else function(x) stats::dist(x, method = feature_distance)
   final_order <- integer(0)
   for (i in sort(unique(cl))) {
     idx <- which(cl == i)
@@ -40,7 +41,7 @@ do_order_within_clusters <- function(m, cl, do_reorder, feature_distance, featur
       final_order <- c(final_order, idx)
     } else {
       submat      <- m[idx, , drop = FALSE]
-      hc          <- hclust(stats::dist(submat, method = feature_distance), method = feature_linkage)
+      hc          <- hclust(d_fn(submat), method = feature_linkage)
       dend        <- reorder(as.dendrogram(hc), weights[idx], mean)
       final_order <- c(final_order, idx[order.dendrogram(dend)])
     }
@@ -66,8 +67,8 @@ do_order_within_clusters <- function(m, cl, do_reorder, feature_distance, featur
 #   cluster_linkage: Linkage method for hierarchical ordering of clusters (default: "complete")
 #   order_within_clusters: Whether to reorder features within each cluster (default: TRUE)
 #                          If FALSE, features maintain their original order within clusters
-#   feature_distance: Distance measure for within-cluster feature reordering (default: "euclidean")
-#   feature_linkage: Linkage method for within-cluster feature reordering (default: "complete")
+#   feature_distance: Distance measure for within-cluster feature reordering (default: NULL, inherits from clustering distance)
+#   feature_linkage: Linkage method for within-cluster feature reordering (default: NULL, inherits from cluster_linkage)
 #
 # Returns:
 #   List with two named vectors:
@@ -76,12 +77,16 @@ do_order_within_clusters <- function(m, cl, do_reorder, feature_distance, featur
 #     - col_num: Named integer vector with cluster numbers (1, 2, 3, ...) for each column
 #                Names are column names, ordered by optimal display order
 
-bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, col_repeats = 1, seed = 42, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete") {
+bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeats = 1, col_repeats = 1, seed = 42, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL) {
   if (!is.matrix(mat)) {
     stop("Input must be a matrix, not ", class(mat)[1], call. = FALSE)
   }
   if (is.null(rownames(mat)) || is.null(colnames(mat))) {
     stop("Matrix must have row names and column names. Please set them before clustering.")
+  }
+
+  if (is.null(feature_linkage)) {
+    feature_linkage <- cluster_linkage
   }
 
   # row clustering
@@ -93,7 +98,7 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeat
     row_cl <- consensus_kmeans(mat, row_k, row_repeats)
     row_cl <- do_order_clusters(mat, row_cl, order_clusters, dist_euclidean, cluster_linkage)
     names(row_cl) <- rownames(mat)
-    row_cl <- do_order_within_clusters(mat, row_cl, order_within_clusters, feature_distance, feature_linkage)
+    row_cl <- do_order_within_clusters(mat, row_cl, order_within_clusters, dist_euclidean, feature_distance, feature_linkage)
   }
 
   row_letter        <- LETTERS[row_cl]
@@ -108,7 +113,7 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeat
     col_cl <- consensus_kmeans(t(mat), col_k, col_repeats)
     col_cl <- do_order_clusters(t(mat), col_cl, order_clusters, dist_euclidean, cluster_linkage)
     names(col_cl) <- colnames(mat)
-    col_cl <- do_order_within_clusters(t(mat), col_cl, order_within_clusters, feature_distance, feature_linkage)
+    col_cl <- do_order_within_clusters(t(mat), col_cl, order_within_clusters, dist_euclidean, feature_distance, feature_linkage)
   }
 
   col_num        <- col_cl
@@ -134,8 +139,10 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeat
 #                    hierarchical ordering of clusters (default: "complete")
 #   order_within_clusters: Whether to reorder features within each cluster (default: TRUE)
 #                          If FALSE, features maintain their original order within clusters
-#   feature_distance: Distance measure for within-cluster feature reordering (default: "euclidean")
-#   feature_linkage: Linkage method for within-cluster feature reordering (default: "complete")
+#   feature_distance: Distance measure for within-cluster feature reordering
+#                     (default: NULL, inherits from clustering distance)
+#                     Any method accepted by dist() is valid (e.g. "euclidean", "manhattan")
+#   feature_linkage: Linkage method for within-cluster feature reordering (default: NULL, inherits from cluster_linkage)
 #
 # Returns:
 #   List with two named vectors:
@@ -144,12 +151,16 @@ bidirectional_kmeans_clustering <- function(mat, row_k, col_k = NULL, row_repeat
 #     - col_num: Named integer vector with cluster numbers (1, 2, 3, ...) for each column
 #                Names are column names, ordered by optimal display order
 
-bidirectional_correlation_clustering <- function(mat, row_k, col_k = NULL, seed = 42, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete") {
+bidirectional_correlation_clustering <- function(mat, row_k, col_k = NULL, seed = 42, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL) {
   if (!is.matrix(mat)) {
     stop("Input must be a matrix, not ", class(mat)[1], call. = FALSE)
   }
   if (is.null(rownames(mat)) || is.null(colnames(mat))) {
     stop("Matrix must have row names and column names. Please set them before clustering.")
+  }
+
+  if (is.null(feature_linkage)) {
+    feature_linkage <- cluster_linkage
   }
 
   # row clustering
@@ -161,7 +172,7 @@ bidirectional_correlation_clustering <- function(mat, row_k, col_k = NULL, seed 
     row_cl <- cutree(hclust(dist_correlation(mat), method = cluster_linkage), k = row_k)
     row_cl <- do_order_clusters(mat, row_cl, order_clusters, dist_correlation, cluster_linkage)
     names(row_cl) <- rownames(mat)
-    row_cl <- do_order_within_clusters(mat, row_cl, order_within_clusters, feature_distance, feature_linkage)
+    row_cl <- do_order_within_clusters(mat, row_cl, order_within_clusters, dist_correlation, feature_distance, feature_linkage)
   }
 
   row_letter        <- LETTERS[row_cl]
@@ -176,7 +187,7 @@ bidirectional_correlation_clustering <- function(mat, row_k, col_k = NULL, seed 
     col_cl <- cutree(hclust(dist_correlation(t(mat)), method = cluster_linkage), k = col_k)
     col_cl <- do_order_clusters(t(mat), col_cl, order_clusters, dist_correlation, cluster_linkage)
     names(col_cl) <- colnames(mat)
-    col_cl <- do_order_within_clusters(t(mat), col_cl, order_within_clusters, feature_distance, feature_linkage)
+    col_cl <- do_order_within_clusters(t(mat), col_cl, order_within_clusters, dist_correlation, feature_distance, feature_linkage)
   }
 
   col_num        <- col_cl

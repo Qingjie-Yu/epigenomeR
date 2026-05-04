@@ -8,8 +8,8 @@
 #             order_clusters: whether to hierarchically order clusters by centroid similarity (default: TRUE)
 #             cluster_linkage: linkage method for hierarchical ordering of clusters (default: "complete")
 #             order_within_clusters: whether to reorder features within each cluster using hierarchical clustering (default: TRUE)
-#             feature_distance: distance metric for within-cluster feature reordering (default: "euclidean")
-#             feature_linkage: linkage method for within-cluster feature reordering (default: "complete")
+#             feature_distance: distance metric for within-cluster feature reordering (default: NULL, inherits from clustering distance)
+#             feature_linkage: linkage method for within-cluster feature reordering (default: NULL, inherits from cluster_linkage)
 #             plot: whether to generate heatmaps (default: TRUE)
 #             apply_zscore: whether to z-score rows before plotting heatmap (default: TRUE).
 #                           When TRUE, heatmap colors reflect relative differences across samples per region.
@@ -19,7 +19,7 @@
 #            lower_range: lower bound for heatmap color scale (default: NULL, auto-calculated)
 #            upper_range: upper bound for heatmap color scale (default: NULL, auto-calculated)
 
-clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = "euclidean", feature_linkage = "complete", plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE, lower_range = NULL, upper_range = NULL) {
+clustering <- function(cm_paths, sample_names, row_km, out_dir, crf_names = NULL, seed = 42, apply_filter = TRUE, order_clusters = TRUE, cluster_linkage = "complete", order_within_clusters = TRUE, feature_distance = NULL, feature_linkage = NULL, plot = TRUE, apply_zscore = TRUE, show_column_names = TRUE, lower_range = NULL, upper_range = NULL) {
   # peaks × CRFs
   sample_list <- lapply(seq_along(cm_paths), function(j) {
     df <- arrow::read_feather(cm_paths[j])
