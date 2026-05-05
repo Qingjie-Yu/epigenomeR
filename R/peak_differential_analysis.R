@@ -1,4 +1,4 @@
-peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", bam_pattern = "\\.bam$", peak_pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.5, p_threshold = 0.05, p_type = c("fdr", "nominal", "bonferroni")) {
+peak_differential_analysis <- function(peak_dirs, bam_dirs, conditions, sample_names = NULL, ref_genome = "hg38", out_dir = "./", bam_pattern = "\\.bam$", peak_pattern = "_peaks\\.narrowPeak$", window_size = NULL, min_support = 2, lfc_threshold = 0.05, p_threshold = 0.1, p_type = c("fdr", "nominal", "bonferroni")) {
   p_type <- match.arg(p_type)
   # input validation
   if (length(peak_dirs) != length(conditions)) {

@@ -114,7 +114,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
 
 
 clustering_multi_heatmap <- function(
-  crf_mat_list, row_cluster_file_path, out_dir, pdf_name = "multi_crf_heatmap.pdf", show_col_names = TRUE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.25 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6,col_names_rot = 60
+  crf_mat_list, row_cluster_file_path, out_dir, pdf_name = "multi_crf_heatmap.pdf", show_col_names = TRUE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.25 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6,col_names_rot = 60, dpi = 300
 ) {
  
   heatmap_gap_inch <- 0.3  / 2.54
