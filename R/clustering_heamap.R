@@ -19,7 +19,7 @@
 #         returns the Heatmap object invisibly
 
 
-clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_col_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6, col_names_rot = 60) {
+clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_name = "clustering_heatmap.pdf", show_col_names = FALSE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.3 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6, col_names_rot = 60, dpi = 300) {
   # Load Library
   suppressPackageStartupMessages({
     library(ggplot2)
@@ -75,6 +75,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
     column_labels     = TeX(colnames(mat)),
     row_title_rot     = 0,
     use_raster        = TRUE,
+    raster_quality = dpi / 72,
 
     border    = TRUE,
     rect_gp   = gpar(col = NA, lwd = 0),
@@ -195,6 +196,7 @@ clustering_multi_heatmap <- function(
       border_gp = gpar(col = "white", lwd = 0.5),
  
       use_raster = TRUE,
+      raster_quality = dpi / 72,
  
       heatmap_legend_param = list(
         title            = legend_title,

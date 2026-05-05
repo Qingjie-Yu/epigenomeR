@@ -1,4 +1,4 @@
-clustering_wrapper <- function(cm_paths, row_km, out_dir, sample_names, crf_names = NULL, transformations  = c("libnorm", "log2p1"), cluster_mode = "multi", apply_filter = TRUE, filter_regions = NULL, filter_mode = "union", seed = 42, feature_distance = NULL, apply_zscore = TRUE, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre")) {
+clustering_wrapper <- function(cm_paths, row_km, out_dir, sample_names, crf_names = NULL, transformations  = c("libnorm", "log2p1"), cluster_mode = "single", apply_filter = TRUE, filter_regions = NULL, filter_mode = "union", seed = 42, feature_distance = NULL, apply_zscore = TRUE, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre")) {
   # ── Transform ──
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  Applying Transformations")
