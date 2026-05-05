@@ -95,7 +95,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
   out_path <- file.path(out_dir, pdf_name)
 
-  pdf(NULL)
+  pdf(NULL, width = 100, height = 100)
   drawn <- draw(ht, heatmap_legend_side = "right", background = "transparent")
   w <- convertX(ComplexHeatmap:::width(drawn),  "inches", valueOnly = TRUE)
   h <- convertY(ComplexHeatmap:::height(drawn), "inches", valueOnly = TRUE)
@@ -113,7 +113,7 @@ clustering_heatmap <- function(mat, row_cluster_file_path, out_dir = "./", pdf_n
 
 
 clustering_multi_heatmap <- function(
-  crf_mat_list, row_cluster_file_path, out_dir, pdf_name = "multi_crf_heatmap.pdf", show_col_names = TRUE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 1 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6,col_names_rot = 60
+  crf_mat_list, row_cluster_file_path, out_dir, pdf_name = "multi_crf_heatmap.pdf", show_col_names = TRUE, fig_width = NULL, fig_height = NULL, cell_width = 0.5 / 2.54, cell_height = 0.003 / 2.54, legend_width = 0.25 / 2.54, legend_height = 5 / 2.54, lower_range = NULL, upper_range = NULL, legend_title = "Z-Score", row_title_fontsize = 8, col_title_fontsize = 8, legend_title_fontsize = 6, legend_label_fontsize = 6, col_names_fontsize = 6,col_names_rot = 60
 ) {
  
   heatmap_gap_inch <- 0.3  / 2.54
@@ -214,7 +214,7 @@ clustering_multi_heatmap <- function(
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
   out_path <- file.path(out_dir, pdf_name)
  
-  pdf(NULL)
+  pdf(NULL, width = 100, height = 100)
   drawn <- draw(ht_list,
     heatmap_legend_side = "right",
     ht_gap              = unit(heatmap_gap_inch, "inches"),
