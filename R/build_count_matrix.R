@@ -108,68 +108,83 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
       }
     }
 
-    # Process BAM files for custom regions
-    for (k in seq_along(bam_path)) {
-      bam <- bam_path[k]
-      overlapCount <- numeric(length(bin))
+    # Process BAM files for custom regions (parallelized by chromosome)
+    bin_chr <- as.character(seqnames(bin))
+    chr_list <- unique(bin_chr)
+    
+    result_list <- bplapply(chr_list, function(chr_i) {
+      bin_idx <- which(bin_chr == chr_i)
+      bin_i <- bin[bin_idx]
+      chrSizei <- seqlengths(bam_seqinfo)[chr_i]
+      param <- ScanBamParam(which = GRanges(chr_i, IRanges(1, chrSizei)))
 
-      if (is_paired) {
-        temp <- readGAlignmentPairs(bam)
-        if (length(temp) == 0) {
-          bamContent <- GRanges()
+      sub_df <- binChriDataframe[bin_idx, , drop = FALSE]
+
+      for (k in seq_along(bam_path)) {
+        bam <- bam_path[k]
+        overlapCount <- numeric(length(bin_i))
+
+        if (is_paired) {
+          temp <- readGAlignmentPairs(bam, param = param)
+          if (length(temp) == 0) {
+            bamContent <- GRanges()
+          } else {
+            locus <- data.frame(
+              first_start = start(temp@first),
+              first_end   = end(temp@first),
+              last_start  = start(temp@last),
+              last_end    = end(temp@last)
+            )
+            frag_start <- rowMin(as.matrix(locus))
+            frag_end   <- rowMax(as.matrix(locus))
+            bamContent <- makeGRangesFromDataFrame(data.frame(
+              seqnames = as.vector(seqnames(temp)), strand = "*",
+              start = frag_start, end = frag_end
+            ))
+          }
         } else {
-          locus <- data.frame(
-            first_start = start(temp@first),
-            first_end   = end(temp@first),
-            last_start  = start(temp@last),
-            last_end    = end(temp@last)
-          )
-          frag_start <- rowMin(as.matrix(locus))
-          frag_end   <- rowMax(as.matrix(locus))
-          bamContent <- makeGRangesFromDataFrame(data.frame(
-            seqnames = as.vector(seqnames(temp)), strand = "*",
-            start = frag_start, end = frag_end
-          ))
+          temp <- readGAlignments(bam, param = param)
+          if (length(temp) == 0) {
+            bamContent <- GRanges()
+          } else {
+            bamContent <- GRanges(
+              seqnames = seqnames(temp),
+              ranges   = IRanges(start = start(temp), end = end(temp)),
+              strand   = "*"
+            )
+          }
         }
-      } else {
-        temp <- readGAlignments(bam)
-        if (length(temp) == 0) {
-          bamContent <- GRanges()
-        } else {
-          bamContent <- GRanges(
-            seqnames = seqnames(temp),
-            ranges   = IRanges(start = start(temp), end = end(temp)),
-            strand   = "*"
-          )
+
+        if (length(bamContent) > 0) {
+          overlaps <- findOverlaps(bamContent, bin_i, ignore.strand = TRUE)
+          qh <- queryHits(overlaps)
+          sh <- subjectHits(overlaps)
+
+          fragment_starts  <- start(bamContent)[qh]
+          fragment_ends    <- end(bamContent)[qh]
+          fragment_lengths <- fragment_ends - fragment_starts + 1
+
+          bin_starts <- start(bin_i)[sh]
+          bin_ends   <- end(bin_i)[sh]
+
+          overlap_starts  <- pmax(fragment_starts, bin_starts)
+          overlap_ends    <- pmin(fragment_ends, bin_ends)
+          overlap_lengths <- pmax(0, overlap_ends - overlap_starts + 1)
+          proportions     <- overlap_lengths / fragment_lengths
+
+          if (length(sh) > 0) {
+            sums <- rowsum(proportions, group = sh)[, 1]
+            overlapCount[as.integer(names(sums))] <- sums
+          }
         }
+
+        bamName <- tools::file_path_sans_ext(basename(bam))
+        sub_df[[bamName]] <- overlapCount
       }
+      return(sub_df)
+    }, BPPARAM = BPPARAM)
+    binChriDataframe <- as.data.frame(data.table::rbindlist(result_list))
 
-      if (length(bamContent) > 0) {
-        overlaps <- findOverlaps(bamContent, bin, ignore.strand = TRUE)
-        qh <- queryHits(overlaps)
-        sh <- subjectHits(overlaps)
-
-        fragment_starts <- start(bamContent)[qh]
-        fragment_ends   <- end(bamContent)[qh]
-        fragment_lengths <- fragment_ends - fragment_starts + 1
-
-        bin_starts <- start(bin)[sh]
-        bin_ends   <- end(bin)[sh]
-
-        overlap_starts  <- pmax(fragment_starts, bin_starts)
-        overlap_ends    <- pmin(fragment_ends, bin_ends)
-        overlap_lengths <- pmax(0, overlap_ends - overlap_starts + 1)
-        proportions     <- overlap_lengths / fragment_lengths
-
-        if (length(sh) > 0) {
-          summed <- aggregate(proportions, by = list(bin_id = sh), FUN = sum)
-          overlapCount[summed$bin_id] <- summed$x
-        }
-      }
-
-      bamName <- tools::file_path_sans_ext(basename(bam))
-      binChriDataframe[[bamName]] <- overlapCount
-    }
     # Format output
     has_gene_id <- "gene_id" %in% colnames(binChriDataframe) &&
       all(!is.na(binChriDataframe$gene_id)) &&
@@ -184,6 +199,7 @@ build_count_matrix <- function(bam_path, regions, out_dir = "./", ref_genome = "
     pos_df <- data.frame(pos = pos_vec)
     tmp_wgc <- binChriDataframe[, !(names(binChriDataframe) %in% drop_cols), drop = FALSE]
     binChriDataframe_full <- cbind(pos_df, tmp_wgc)
+    
   } else {
     # Get reference genome size
     if (ref_genome == "hg38") {
