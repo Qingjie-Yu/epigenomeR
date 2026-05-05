@@ -195,23 +195,27 @@ clustering_multi_crf <- function(
       common_regions <- intersect(common_regions, filter_regions)
       message("Regions after whitelist filter: ", length(common_regions))
     } else {
-      hvr_sets <- lapply(crf_names, function(crf) {
-        mat     <- crf_mats[[crf]][common_regions, , drop = FALSE]
-        crf_out <- file.path(out_dir, crf)
-        if (!dir.exists(crf_out)) dir.create(crf_out, recursive = TRUE, showWarnings = FALSE)
+      filter_dir <- file.path(out_dir, "filtered")
+      dir.create(filter_dir, recursive = TRUE, showWarnings = FALSE)
 
-        tmp_path <- file.path(crf_out, paste0(crf, "_transformed.feather"))
+      hvr_sets <- lapply(crf_names, function(crf) {
+        mat <- crf_mats[[crf]][common_regions, , drop = FALSE]
+
+        tmp_path <- file.path(filter_dir, paste0(crf, "_transformed.feather"))
         arrow::write_feather(
           data.frame(pos = rownames(mat), as.data.frame(mat), check.names = FALSE),
           tmp_path
         )
 
-        filtered_path <- detect_hvr(transformed_cm_path = tmp_path, out_dir = crf_out)
+        filtered_path <- detect_hvr(transformed_cm_path = tmp_path, out_dir = filter_dir)
         filtered_df   <- arrow::read_feather(filtered_path)
         file.remove(tmp_path)
         file.remove(filtered_path)
         filtered_df$pos
       })
+
+      unlink(filter_dir, recursive = TRUE)
+
       common_regions <- if (filter_mode == "union") {
         Reduce(union, hvr_sets)
       } else {

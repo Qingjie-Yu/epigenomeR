@@ -33,8 +33,9 @@
 # Returns:
 #   Character string: File path to the filtered count matrix (.feather format)
 
-detect_hvr <- function(transformed_cm_path, out_dir = "./", keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE) {
+detect_hvr <- function(transformed_cm_path, out_dir = "./", keep_percent = 0.01, log2mean_quantile_thres = 0.99, plot = FALSE, save_each_step = FALSE) {
   mav_path <- mav_screen(transformed_cm_path = transformed_cm_path, out_dir = out_dir, plot = plot)
   filtered_cm_path <- filter_hvr(transformed_cm_path = transformed_cm_path, mav_stats_path = mav_path, out_dir = out_dir, keep_percent = keep_percent, log2mean_quantile_thres = log2mean_quantile_thres, plot = plot)
+  if (!isTRUE(save_each_step)) file.remove(mav_path)
   return(filtered_cm_path)
 }
