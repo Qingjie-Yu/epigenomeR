@@ -1,3 +1,39 @@
+transform_mat <- function(mat, transformations = c("libnorm", "log2p1")) {
+  for (t in transformations) {
+    if (t == "remove0") {
+      zero_rows <- rowSums(mat) == 0
+      n_zero <- sum(zero_rows)
+      message(if (n_zero > 0) paste("Removed", n_zero, "all-zero row(s)") else "No all-zero rows found")
+      if (n_zero > 0) mat <- mat[!zero_rows, , drop = FALSE]
+      if (nrow(mat) == 0) stop("Error: all rows have zero counts; nothing left after filtering.")
+    } else if (t == "libnorm") {
+      col_sums <- colSums(mat, na.rm = TRUE)
+      if (any(col_sums == 0)) stop("Error: one or more samples have zero total counts.")
+      mat <- t(t(mat) / col_sums * 1e6)
+    } else if (t == "log2p1") {
+      mat <- log2(mat + 1)
+    } else if (t == "qnorm") {
+      rn <- rownames(mat); cn <- colnames(mat)
+      mat <- preprocessCore::normalize.quantiles(mat, copy = TRUE)
+      rownames(mat) <- rn; colnames(mat) <- cn
+    } else if (t == "zscore") {
+      mat <- t(scale(t(mat)))
+    } else if (t == "minmaxnorm") {
+      col_mins   <- apply(mat, 2, min)
+      col_ranges <- apply(mat, 2, max) - col_mins
+      is_constant <- col_ranges == 0
+      mat <- sweep(mat, 2, col_mins, FUN = "-")
+      if (any(is_constant))  { mat[, is_constant] <- 0; message(sum(is_constant), " constant column(s) set to 0") }
+      if (any(!is_constant))   mat[, !is_constant] <- sweep(mat[, !is_constant, drop = FALSE], 2, col_ranges[!is_constant], FUN = "/")
+    } else if (t == "sqrt") {
+      mat <- sqrt(mat)
+    } else {
+      warning("Unrecognized transformation: '", t, "'. Skipping!")
+    }
+  }
+  mat
+}
+
 # Apply Transformation
 # Post: Apply a series of transformations to count matrix data.
 # Supported transformations:
@@ -16,103 +52,43 @@
 #
 # Output: Saves transformed count matrix as .feather file with "_transformed" suffix.  Returns the full output file path (character).
 
-apply_transformations <- function(cm_path, out_dir = "./", transformations = c("remove0", "libnorm", "log2p1", "qnorm"), save_each_step = FALSE) {
+apply_transformations <- function(cm_path, out_dir = "./", transformations = c("libnorm", "log2p1"), save_each_step = FALSE) {
   suppressPackageStartupMessages({
-    library(arrow)
-    library(tibble)
-    library(matrixStats)
-    library(preprocessCore)
+    library(arrow); library(tibble)
+    library(matrixStats); library(preprocessCore)
   })
 
-  df <- read_feather(cm_path)
-  df <- as.data.frame(df, stringsAsFactors = FALSE, check.names = FALSE)
+  df <- as.data.frame(read_feather(cm_path), stringsAsFactors = FALSE, check.names = FALSE)
   input_prefix <- basename(tools::file_path_sans_ext(cm_path))
 
-  pos_colname <- "pos"
-  if (pos_colname %in% colnames(df)) {
-    rownames(df) <- df[[pos_colname]]
-    df[[pos_colname]] <- NULL
-  } else {
-    warning(pos_colname, " column not found in the feather file. Automatically set the first column as the chromosome coordinate information.")
-    first_col <- colnames(df)[1]
-    rownames(df) <- df[[first_col]]
-    df[[first_col]] <- NULL
+  pos_colname <- if ("pos" %in% colnames(df)) "pos" else {
+    warning("'pos' column not found. Using first column as coordinate.")
+    colnames(df)[1]
   }
+  rownames(df) <- df[[pos_colname]]; df[[pos_colname]] <- NULL
 
-  if (!dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
-  }
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  SHARED_TRANSFORMS <- c("remove0", "libnorm", "log2p1", "qnorm", "zscore", "minmaxnorm", "sqrt")
 
   applied <- c()
   for (t in transformations) {
-    if (t == "remove0") {
-      zero_rows <- rowSums(df) == 0
-      n_zero <- sum(zero_rows)
-      if (n_zero > 0) {
-        df <- df[!zero_rows, , drop = FALSE]
-        message("Removed ", n_zero, " all-zero row(s)")
-      } else {
-        message("No all-zero rows found")
-      }
-      if (nrow(df) == 0) {
-        stop("Error: all rows have zero counts; nothing left after filtering.")
-      }
-    } else if (t == "libnorm") {
-      message("\n=== Perform Library Normalization ===")
-      col_sums <- colSums(df, na.rm = TRUE)
-      if (any(col_sums == 0)) {
-        stop("Error: one or more samples have zero total counts.")
-      }
-      df <- t(t(df) / col_sums * 1e6)
-      message("Library normalization completed")
-    } else if (t == "log2p1") {
-      message("\n=== Apply log2(x+1) Transformation ===")
-      df <- log2(df + 1)
-      message("log2(x+1) transformation completed")
-    } else if (t == "minmaxnorm") {
-      message("\n=== Apply Min-Max Normalization ===")
-      col_mins <- apply(df, 2, min)
-      col_ranges <- apply(df, 2, max) - col_mins
-      is_constant <- col_ranges == 0
-      df <- sweep(df, 2, col_mins, FUN = "-")
-
-      if (any(is_constant)) {
-        df[, is_constant] <- 0
-        message(sum(is_constant), " constant column(s) normalized to 0")
-      }
-      if (any(!is_constant)) {
-        df[, !is_constant] <- sweep(df[, !is_constant, drop = FALSE], 2, col_ranges[!is_constant], FUN = "/")
-      }
-      message("Min-Max normalization completed")
-    } else if (t == "sqrt") {
-      message("\n=== Square Root ===")
-      df <- sqrt(df)
-    } else if (t == "qnorm") {
-      message("\n=== Quantile Normalization ===")
-      old_rownames <- rownames(df)
-      old_colnames <- colnames(df)
-      df <- normalize.quantiles(as.matrix(df), copy = TRUE)
-      df <- as.data.frame(df)
-      rownames(df) <- old_rownames
-      colnames(df) <- old_colnames
-      message("Quantile normalization completed")
+    if (t %in% SHARED_TRANSFORMS) {
+      df <- as.data.frame(transform_mat(as.matrix(df), t))
     } else {
       warning("Unrecognized transformation: '", t, "'. Skipping!")
       next
     }
 
     applied <- c(applied, t)
-    if (save_each_step == TRUE) {
-      df_to_save <- rownames_to_column(as.data.frame(df), var = pos_colname)
-      file_name <- paste0(input_prefix, "_", paste(applied, collapse = "_"), ".feather")
-      save_path <- file.path(out_dir, file_name)
-      write_feather(df_to_save, save_path)
+    if (isTRUE(save_each_step)) {
+      out <- rownames_to_column(as.data.frame(df), var = pos_colname)
+      write_feather(out, file.path(out_dir, paste0(input_prefix, "_", paste(applied, collapse = "_"), ".feather")))
     }
   }
 
-  df_to_save <- rownames_to_column(as.data.frame(df), var = pos_colname)
-  output_name <- paste0(input_prefix, "_transformed.feather")
-  output_path <- file.path(out_dir, output_name)
-  write_feather(df_to_save, output_path)
-  return(output_path)
+  out <- rownames_to_column(as.data.frame(df), var = pos_colname)
+  output_path <- file.path(out_dir, paste0(input_prefix, "_transformed.feather"))
+  write_feather(out, output_path)
+  output_path
 }
