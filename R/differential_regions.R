@@ -170,6 +170,7 @@ differential_summary_plot <- function(tsv, pdf) {
     theme(
       axis.line.x        = element_blank(),
       axis.ticks.x       = element_blank(),
+      axis.text.x        = element_text(angle = 45, hjust = 1),
       legend.position    = "top",
       legend.key.size    = unit(0.4, "cm"),
       panel.grid.major.y = element_line(color = "grey92", linewidth = 0.3)

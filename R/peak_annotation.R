@@ -12,6 +12,23 @@ read_peak_to_grl <- function(peak_path, pattern = "_peaks\\.narrowPeak$") {
   grl
 }
 
+read_tsv_to_grl <- function(tsv_path, pattern = "_sig\\.tsv$") {
+  targets <- basename(tsv_path) |> stringr::str_replace(pattern, "")
+  grl <- GRangesList(lapply(tsv_path, function(f) {
+    df <- read.table(f, header = TRUE, sep = "\t", comment.char = "#")
+    region <- df[[1]]
+    parts <- stringr::str_split_fixed(region, "_", 3)
+    gr <- GRanges(
+      seqnames = parts[, 1],
+      ranges = IRanges(start = as.integer(parts[, 2]), end = as.integer(parts[, 3]))
+    )
+    gr
+  }))
+  names(grl) <- targets
+  grl
+}
+
+
 # Peak Genomic Distribution Pipeline
 #
 # Annotates a set of peak BED files with distribution across genomic features.
