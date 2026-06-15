@@ -109,7 +109,7 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
 }
 
 # Extract signal blocks from BEDGRAPH files
-peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc_top_pct = 0.1, qvalue_cutoff = 0.05, fc_cutoff = 2) {
+peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc_top_pct = 0.01, qvalue_cutoff = 0.05, fc_cutoff = 2) {
   suppressPackageStartupMessages({
     library(GenomeInfoDb)
     library(BSgenome.Hsapiens.UCSC.hg38)
@@ -199,16 +199,6 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
 
     blocks <- data.table::rbindlist(blocks_list)
 
-    # AUC percentile pre-filter
-    if (auc_top_pct < 1.0) {
-      auc_thresh <- stats::quantile(blocks$auc, probs = 1 - auc_top_pct)
-      blocks <- blocks[blocks$auc >= auc_thresh, ]
-      if (nrow(blocks) == 0L) {
-        warning("No blocks remaining after AUC top ", auc_top_pct * 100, "% filter for file: ", bg)
-        return(NULL)
-      }
-    }
-
     # FC
     blocks$fc <- blocks$auc * blocks$bg_length / (blocks$bg_auc * blocks$length)
 
@@ -232,6 +222,17 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
     # Filter
     blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
     if (nrow(blocks) == 0L) return(NULL)
+
+    # AUC percentile AFTER statistical testing
+    if (auc_top_pct < 1.0) {
+      auc_thresh <- stats::quantile(blocks$auc, probs = 1 - auc_top_pct)
+      blocks <- blocks[blocks$auc >= auc_thresh, ]
+      if (nrow(blocks) == 0L) {
+        warning("No blocks remaining after post-filter AUC top ",
+                auc_top_pct * 100, "% for: ", bg)
+        return(NULL)
+      }
+    }
 
     # Prepare narrowPeak output (0-based)
     blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
