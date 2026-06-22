@@ -37,13 +37,39 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
     len        = len0
   )
 
-  blocks <- dt_tmp[, .(
-    chr    = chr,
-    start  = min(chromStart),
-    end    = max(chromEnd),
-    auc    = sum(value * len),
-    length = sum(len)
-  ), by = block_id]
+  blocks <- dt_tmp[, {
+    max_val <- max(value)
+    is_max  <- value == max_val
+    # Check whether all max-value intervals are contiguous in the original
+    # interval order (i.e. form a single uninterrupted plateau). If they are
+    # scattered with lower-value intervals in between, taking min/max across
+    # all of them would incorrectly stretch the summit across the gap.
+    max_idx <- which(is_max)
+    is_contiguous <- length(max_idx) == 1L || all(diff(max_idx) == 1L)
+
+    if (is_contiguous) {
+      s_start <- min(chromStart[is_max])
+      s_end   <- max(chromEnd[is_max])
+    } else {
+      # Scattered ties: fall back to the tie closest to the block's
+      # geometric center, rather than spanning across the gap.
+      block_mid  <- (min(chromStart) + max(chromEnd)) / 2
+      cand_mid   <- (chromStart[max_idx] + chromEnd[max_idx]) / 2
+      pick       <- max_idx[which.min(abs(cand_mid - block_mid))]
+      s_start    <- chromStart[pick]
+      s_end      <- chromEnd[pick]
+    }
+
+    .(
+      chr          = chr,
+      start        = min(chromStart),
+      end          = max(chromEnd),
+      auc          = sum(value * len),
+      length       = sum(len),
+      summit_start = s_start,
+      summit_end   = s_end
+    )
+  }, by = block_id]
 
   # Background window definition (0-based)
   blocks[, ext := as.integer(ceiling(4.5 * length))]
@@ -127,7 +153,7 @@ write_narrowpeak <- function(blocks, pair, out_dir) {
     blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
     blocks$strand <- "."
     blocks$chromStart <- blocks$start
-    blocks$peak   <- -1L
+    blocks$peak   <- as.integer(round((blocks$summit_start + blocks$summit_end) / 2 - blocks$start))
 
     bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand",
                        "fc", "pValue", "qValue", "peak", "length", "auc", "cov")]
@@ -190,7 +216,7 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
     # Read bedGraph
     dt_all <- data.table::fread(bg, header = FALSE, sep = "\t", select = 1:4, showProgress = FALSE)
     if (ncol(dt_all) < 4) {
-      message("Skipping ", bg, ": invalid bedGraph format.")
+      message("Skipping ", pair, ": invalid bedGraph format.")
       return(write_narrowpeak(data.table::data.table(), pair, out_dir))
     }
 
@@ -272,7 +298,7 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
     blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
     if (nrow(blocks) == 0L) {
       warning("No blocks passed qvalue_cutoff (", qvalue_cutoff,
-              ") and fc_cutoff (", fc_cutoff, ") for: ", bg)
+              ") and fc_cutoff (", fc_cutoff, ") for: ", pair)
       return(write_narrowpeak(blocks, pair, out_dir))
     }
 
@@ -282,7 +308,7 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
       blocks <- blocks[blocks$auc >= auc_thresh, ]
       if (nrow(blocks) == 0L) {
         warning("No blocks remaining after post-filter AUC top ",
-                auc_top_pct * 100, "% for: ", bg)
+                auc_top_pct * 100, "% for: ", pair)
         return(write_narrowpeak(blocks, pair, out_dir))
       }
     }

@@ -170,6 +170,46 @@ peak_pathway_annotation <- function(peak_path, out_dir = "./", ref_genome = "hg3
   message("Pathway annotation complete")
 }
 
+# Read narrowPeak files into a GRangesList, anchored on each peak's summit
+# (column 10, "peak" = offset from chromStart) rather than the peak's
+# geometric center. Each region is expanded to `width` bp around the summit.
+read_summit_to_grl <- function(peak_path, pattern = "_peaks\\.narrowPeak$", width = 800) {
+  targets <- basename(peak_path) |> stringr::str_replace(pattern, "")
+
+  grl_list <- lapply(seq_along(peak_path), function(i) {
+    f <- peak_path[i]
+
+    if (is.null(f) || !file.exists(f) || file.size(f) == 0L) {
+      message("Skipping ", targets[i], ": no peak file or empty file.")
+      return(NULL)
+    }
+
+    df <- read.table(f, header = FALSE, sep = "\t", comment.char = "#")
+    if (nrow(df) == 0L) {
+      message("Skipping ", targets[i], ": 0 peaks.")
+      return(NULL)
+    }
+
+    # narrowPeak columns: chrom, chromStart, chromEnd, name, score, strand,
+    # signalValue, pValue, qValue, peak (summit offset from chromStart)
+    chrom       <- df[[1]]
+    chromStart  <- df[[2]]
+    summit_pos  <- chromStart + df[[10]]   # absolute summit coordinate (0-based)
+
+    half_width <- floor(width / 2)
+    GRanges(
+      seqnames = chrom,
+      ranges   = IRanges(start = summit_pos - half_width + 1L,
+                          end   = summit_pos + half_width)
+    )
+  })
+
+  keep <- !vapply(grl_list, is.null, logical(1))
+  grl <- GRangesList(grl_list[keep])
+  names(grl) <- targets[keep]
+  grl
+}
+
 # TFBS enrichment pipeline
 peak_TFBS_enrichment <- function(peak_path, out_dir = "./", ref_genome = "hg38", ref_source = "knownGene", pattern = "_peaks\\.narrowPeak$", control_rep = 1, regions = 800, plot = TRUE, plot_n_top = 20, seed = 42) {
   # Load packages
@@ -196,8 +236,8 @@ peak_TFBS_enrichment <- function(peak_path, out_dir = "./", ref_genome = "hg38",
     dir.create(out_dir, recursive = TRUE)
   }
 
-  # PEAK -> GRangesList
-  grl <- read_peak_to_grl(peak_path = peak_path, pattern = pattern)
+  # PEAK -> GRangesList, anchored on the summit (not the geometric center)
+  grl <- read_summit_to_grl(peak_path = peak_path, pattern = pattern, width = regions)
   if (length(grl) == 0L) {
     warning("No pairs with peaks remaining after reading peak files; skipping TFBS enrichment.")
     return(invisible(NULL))
