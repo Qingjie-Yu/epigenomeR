@@ -108,6 +108,39 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
   blocks[]
 }
 
+# Write a data.table of peak blocks (possibly empty) to narrowPeak format
+write_narrowpeak <- function(blocks, pair, out_dir) {
+  output_file <- file.path(out_dir, paste0(pair, "_peaks.narrowPeak"))
+  n_peaks <- nrow(blocks)
+
+  if (n_peaks == 0L) {
+    bed <- data.table::data.table(
+      chrom = character(0), chromStart = integer(0), chromEnd = integer(0),
+      name = character(0), score = integer(0), strand = character(0),
+      signalValue = numeric(0), pValue = numeric(0), qValue = numeric(0),
+      peak = integer(0), length = integer(0), auc = numeric(0), cov = numeric(0)
+    )
+  } else {
+    blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
+    blocks$qValue <- -log10(pmax(blocks$q_value, .Machine$double.xmin))
+    blocks$score  <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
+    blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
+    blocks$strand <- "."
+    blocks$chromStart <- blocks$start
+    blocks$peak   <- -1L
+
+    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand",
+                       "fc", "pValue", "qValue", "peak", "length", "auc", "cov")]
+    data.table::setnames(bed, c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue", "peak", "length", "auc", "cov"))
+  }
+
+  utils::write.table(bed, file = output_file, sep = "\t", quote = FALSE,  row.names = FALSE, col.names = FALSE)
+
+  message(sprintf("[%s] %d peak%s called\n", pair, n_peaks, if (n_peaks == 1L) "" else "s"))
+
+  output_file
+}
+
 # Extract signal blocks from BEDGRAPH files
 peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min_cov = 2, qvalue_cutoff = 0.05, fc_cutoff = 2, auc_top_pct = 0.1) {
   suppressPackageStartupMessages({
@@ -153,11 +186,12 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
   }
 
   result_list <- BiocParallel::bplapply(bedgraph_path, function(bg) {
+    pair <- tools::file_path_sans_ext(basename(bg))
     # Read bedGraph
     dt_all <- data.table::fread(bg, header = FALSE, sep = "\t", select = 1:4, showProgress = FALSE)
     if (ncol(dt_all) < 4) {
       message("Skipping ", bg, ": invalid bedGraph format.")
-      return(NULL)
+      return(write_narrowpeak(data.table::data.table(), pair, out_dir))
     }
 
     dt_all <- dt_all[, 1:4]
@@ -174,7 +208,9 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
     run_id <- data.table::rleid(chrom_vec)
     runs <- dt_all[, .(chrom = chrom[1L], i = .I[1L], j = .I[.N]), by = run_id]
     runs <- runs[chrom %in% chr_names]
-    if (nrow(runs) == 0L) return(NULL)
+    if (nrow(runs) == 0L) {
+      return(write_narrowpeak(data.table::data.table(), pair, out_dir))
+    }
 
     starts_all <- dt_all$chromStart
     ends_all   <- dt_all$chromEnd
@@ -198,7 +234,9 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
     })
 
     blocks_list <- blocks_list[!vapply(blocks_list, is.null, logical(1))]
-    if (!length(blocks_list)) return(NULL)
+    if (!length(blocks_list)) {
+      return(write_narrowpeak(data.table::data.table(), pair, out_dir))
+    }
 
     blocks <- data.table::rbindlist(blocks_list)
 
@@ -209,8 +247,8 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
     blocks$cov <- blocks$auc / blocks$length
     blocks <- blocks[blocks$cov >= min_cov, ]
     if (nrow(blocks) == 0L) {
-      warning("No blocks remaining after min_cov (", min_cov, ") filter for: ", bg)
-      return(NULL)
+      warning("No blocks remaining after min_cov (", min_cov, ") filter for: ", pair)
+      return(write_narrowpeak(blocks, pair, out_dir))
     }
 
     # P-value
@@ -232,7 +270,11 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
 
     # Filter
     blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
-    if (nrow(blocks) == 0L) return(NULL)
+    if (nrow(blocks) == 0L) {
+      warning("No blocks passed qvalue_cutoff (", qvalue_cutoff,
+              ") and fc_cutoff (", fc_cutoff, ") for: ", bg)
+      return(write_narrowpeak(blocks, pair, out_dir))
+    }
 
     # AUC percentile AFTER statistical testing
     if (auc_top_pct < 1.0) {
@@ -241,28 +283,11 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
       if (nrow(blocks) == 0L) {
         warning("No blocks remaining after post-filter AUC top ",
                 auc_top_pct * 100, "% for: ", bg)
-        return(NULL)
+        return(write_narrowpeak(blocks, pair, out_dir))
       }
     }
 
-    # Prepare narrowPeak output (0-based)
-    blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
-    blocks$qValue <- -log10(pmax(blocks$q_value, .Machine$double.xmin))
-    blocks$score  <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
-    blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
-    blocks$strand <- "."
-    blocks$chromStart <- blocks$start
-    blocks$peak   <- -1L
-
-    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue", "peak", "length", "auc", "cov")]
-    data.table::setnames(bed, c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue", "peak", "length", "auc", "cov"))
-    
-    pair <- tools::file_path_sans_ext(basename(bg))
-    output_file <- file.path(out_dir, paste0(pair, "_peaks.narrowPeak"))
-    utils::write.table(bed, file = output_file, sep = "\t", quote = FALSE,
-                       row.names = FALSE, col.names = FALSE)
-
-    output_file
+    write_narrowpeak(blocks, pair, out_dir)
   }, BPPARAM = BPPARAM)
 
   names(result_list) <- tools::file_path_sans_ext(basename(bedgraph_path))
