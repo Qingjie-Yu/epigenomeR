@@ -109,7 +109,7 @@ extract_signal_blocks_vec <- function(starts0, ends0, values, chr, chr_size) {
 }
 
 # Extract signal blocks from BEDGRAPH files
-peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc_top_pct = 0.01, qvalue_cutoff = 0.05, fc_cutoff = 2) {
+peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min_cov = 2, qvalue_cutoff = 0.05, fc_cutoff = 2, auc_top_pct = 0.1) {
   suppressPackageStartupMessages({
     library(GenomeInfoDb)
     library(BSgenome.Hsapiens.UCSC.hg38)
@@ -119,6 +119,9 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # Parameter Check
+  if (min_cov < 0) {
+    stop("min_cov must be non-negative.")
+  }
   if (auc_top_pct <= 0 || auc_top_pct > 1) {
     stop("auc_top_pct must be between 0 (exclusive) and 1 (inclusive).")
   }
@@ -202,6 +205,14 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
     # FC
     blocks$fc <- blocks$auc * blocks$bg_length / (blocks$bg_auc * blocks$length)
 
+    # Minimum mean coverage pre-filter: drop "wide-and-shallow" blocks
+    blocks$cov <- blocks$auc / blocks$length
+    blocks <- blocks[blocks$cov >= min_cov, ]
+    if (nrow(blocks) == 0L) {
+      warning("No blocks remaining after min_cov (", min_cov, ") filter for: ", bg)
+      return(NULL)
+    }
+
     # P-value
     if (is_integerish(blocks$auc) && is_integerish(blocks$bg_auc)) {
       blocks$p_value <- stats::pbinom(
@@ -243,9 +254,9 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", auc
     blocks$chromStart <- blocks$start
     blocks$peak   <- -1L
 
-    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue", "peak")]
-    data.table::setnames(bed, c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue", "peak"))
-
+    bed <- blocks[, c("chr", "chromStart", "end", "name", "score", "strand", "fc", "pValue", "qValue", "peak", "length", "auc", "cov")]
+    data.table::setnames(bed, c("chrom", "chromStart", "chromEnd", "name", "score", "strand", "signalValue", "pValue", "qValue", "peak", "length", "auc", "cov"))
+    
     pair <- tools::file_path_sans_ext(basename(bg))
     output_file <- file.path(out_dir, paste0(pair, "_peaks.narrowPeak"))
     utils::write.table(bed, file = output_file, sep = "\t", quote = FALSE,
