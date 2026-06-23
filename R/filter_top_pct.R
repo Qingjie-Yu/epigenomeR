@@ -22,7 +22,7 @@
 #         remaining columns = transformed values per pair, restricted to the union
 #         of top-pct bins across all pairs). Returns the full output file path (character).
 
-filter_top_pct <- function(transformed_cm_path, out_dir = "./", top_pct = 0.01, plot = FALSE) {
+filter_top_pct <- function(transformed_cm_path, out_dir = "./", top_pct = 0.001, plot = FALSE) {
   suppressPackageStartupMessages({
     library(arrow)
   })
@@ -72,13 +72,16 @@ filter_top_pct <- function(transformed_cm_path, out_dir = "./", top_pct = 0.01, 
     )
     plot_path <- file.path(out_dir, "filter_top_pct_diagnostic.pdf")
     pdf(plot_path, width = 7, height = 5)
-    op <- par(mar = c(8, 4, 4, 2))
-    barplot(
+    op <- par(mar = c(10, 4, 4, 2))
+    bar_x <- barplot(
       plot_df$n_selected,
-      names.arg = plot_df$pair,
-      las = 2,
+      names.arg = NA,  # draw labels manually below, rotated at 45 degrees
       main = sprintf("Bins selected per pair (top %.2g%%)", top_pct * 100),
       ylab = "Number of bins above threshold"
+    )
+    text(
+      x = bar_x, y = par("usr")[3] - 0.03 * diff(par("usr")[3:4]),
+      labels = plot_df$pair, srt = 45, adj = c(1, 1), xpd = TRUE, cex = 0.65
     )
     par(op)
     dev.off()
