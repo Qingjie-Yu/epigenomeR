@@ -32,7 +32,9 @@
 #   plot: Logical. Whether to generate diagnostic plots during filtering and biclustering steps. Default: TRUE
 
 
-biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), row_km = 15, col_km = 6, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
+biclustering_wrapper <- function(cm_path, out_dir, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), filter_method = c("top_pct", "hvr", "none"), row_km = 15, col_km = 6, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
+  filter_method <- match.arg(filter_method)
+  
   # Step1: Merge all the count matrix files
   if (is.vector(cm_path) && length(cm_path) > 1) {
     cat("\n", strrep("=", 40), "\n", sep = "")
@@ -50,11 +52,16 @@ biclustering_wrapper <- function(cm_path, out_dir, apply_filter = TRUE, transfor
   transformed_cm_path <- apply_transformations(cm_path = merged_cm_path, out_dir = out_dir, transformations = transformations)
 
   # Step3: Filter highly variable regions
-  if (apply_filter) {
+  if (filter_method == "hvr") {
     cat("\n", strrep("=", 40), "\n", sep = "")
     cat("  Filter highly variable regions")
     cat("\n", strrep("=", 40), "\n", sep = "")
     f_cm_path <- detect_hvr(transformed_cm_path = transformed_cm_path, out_dir = out_dir, plot = plot)
+  } else if (filter_method == "top_pct") {
+    cat("\n", strrep("=", 40), "\n", sep = "")
+    cat("  Filter top-percentile regions (union across pairs)")
+    cat("\n", strrep("=", 40), "\n", sep = "")
+    f_cm_path <- filter_top_pct(transformed_cm_path = transformed_cm_path, out_dir = out_dir, plot = plot)
   } else {
     f_cm_path <- transformed_cm_path
   }
