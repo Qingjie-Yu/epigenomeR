@@ -147,8 +147,8 @@ write_narrowpeak <- function(blocks, pair, out_dir) {
       peak = integer(0), length = integer(0), auc = numeric(0), cov = numeric(0)
     )
   } else {
-    blocks$pValue <- -log10(pmax(blocks$p_value, .Machine$double.xmin))
-    blocks$qValue <- -log10(pmax(blocks$q_value, .Machine$double.xmin))
+    blocks$pValue <- -blocks$log_p / log(10)
+    blocks$qValue <- -blocks$log_q / log(10)
     blocks$score  <- pmin(as.integer(round(blocks$qValue * 10)), 1000L)
     blocks$name   <- paste0(blocks$chr, ":", blocks$start, "-", blocks$end)
     blocks$strand <- "."
@@ -279,23 +279,34 @@ peak_calling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", min
 
     # P-value
     if (is_integerish(blocks$auc) && is_integerish(blocks$bg_auc)) {
-      blocks$p_value <- stats::pbinom(
+      blocks$log_p <- stats::pbinom(
         round(blocks$auc) - 1,
         size = round(blocks$bg_auc),
         prob = blocks$length / blocks$bg_length,
-        lower.tail = FALSE
+        lower.tail = FALSE,
+        log.p = TRUE
       )
     } else {
       k <- pmax(floor(blocks$auc), 0)
       lambda <- (blocks$bg_auc / blocks$bg_length) * blocks$length
-      blocks$p_value <- stats::ppois(k - 1, lambda = lambda, lower.tail = FALSE)
+      blocks$log_p <- stats::ppois(
+        k - 1, 
+        lambda = lambda, 
+        lower.tail = FALSE, 
+        log.p = TRUE
+      )
     }
 
     # Q-value
-    blocks$q_value <- stats::p.adjust(blocks$p_value, method = "BH")
+    n <- nrow(blocks)
+    o <- order(blocks$log_p, decreasing = FALSE)
+    log_bh <- blocks$log_p[o] + log(n / seq_len(n))
+    log_bh <- rev(cummin(rev(log_bh)))
+    blocks$log_q <- numeric(n)
+    blocks$log_q[o] <- pmin(log_bh, 0)
 
     # Filter
-    blocks <- blocks[blocks$q_value < qvalue_cutoff & blocks$fc >= fc_cutoff, ]
+    blocks <- blocks[blocks$log_q < log(qvalue_cutoff) & blocks$fc >= fc_cutoff, ]
     if (nrow(blocks) == 0L) {
       warning("No blocks passed qvalue_cutoff (", qvalue_cutoff,
               ") and fc_cutoff (", fc_cutoff, ") for: ", pair)
