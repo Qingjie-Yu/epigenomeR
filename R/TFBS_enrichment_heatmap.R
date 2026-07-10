@@ -184,7 +184,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
     top_tfbs <- names(head(sort(cv, decreasing = TRUE), top_n))
     odds_ratio_log2_topn <- odds_ratio_log2[top_tfbs, , drop = FALSE]
     cat(glue("Selected top {top_n} TFBS based on coefficient of variation"), "\n")
-    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_heatmap_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster, aspect_ratio = 1)
+    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_enrichment_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster, aspect_ratio = 1)
   }
 
   # save .csv
