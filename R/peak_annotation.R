@@ -259,7 +259,7 @@ peak_TFBS_enrichment <- function(peak_path, out_dir = "./", ref_genome = "hg38",
   cat("\n", strrep("=", 40), "\n", sep = "")
   cat("  TFBS Enrichment Analysis")
   cat("\n", strrep("=", 40), "\n", sep = "")
-  tsv_paths <- TFBS_enrichment(query = grl, contro = control_gr, out_dir = out_dir, ref_genome = ref_genome)
+  tsv_paths <- TFBS_enrichment(query = grl, control = control_gr, out_dir = out_dir, ref_genome = ref_genome)
 
   if (plot) {
     cat("\n", strrep("=", 40), "\n", sep = "")
