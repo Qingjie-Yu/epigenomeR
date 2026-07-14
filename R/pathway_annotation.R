@@ -1,4 +1,4 @@
-pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, cap_neglog10 = 50, color_cap_pct = NULL) {
+pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, cap_pct = NULL) {
   suppressPackageStartupMessages({
     library(dplyr)
     library(ggplot2)
@@ -22,14 +22,15 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
       size_val      = log2(1 + pmax(fold, 0))
     )
 
-  # ---- determine color scale upper bound ----
-  if (!is.null(color_cap_pct)) {
-    stopifnot(is.numeric(color_cap_pct), color_cap_pct > 0, color_cap_pct <= 1)
-    cap_neglog10 <- stats::quantile(df_long$neglog10_padj, probs = color_cap_pct, na.rm = TRUE, names = FALSE)
-    message(sprintf("  color_cap_pct = %.3g -> cap_neglog10 set to %.2f (was fixed value before)",
-                    color_cap_pct, cap_neglog10))
+  # determine color scale upper bound
+  if (is.null(cap_pct)) {
+    cap_neglog10 <- max(df_long$neglog10_padj, na.rm = TRUE)
+    message(sprintf("  cap_pct not set -> using max(neglog10_padj) = %.2f as color cap", cap_neglog10))
+  } else {
+    stopifnot(is.numeric(cap_pct), cap_pct > 0, cap_pct <= 1)
+    cap_neglog10 <- stats::quantile(df_long$neglog10_padj, probs = cap_pct, na.rm = TRUE, names = FALSE)
+    message(sprintf("  cap_pct = %.3g -> cap_neglog10 set to %.2f", cap_pct, cap_neglog10))
   }
-  # guard against degenerate cap (e.g. all padj == 1 or all identical)
   if (!is.finite(cap_neglog10) || cap_neglog10 <= 0) {
     cap_neglog10 <- 1
     message("  cap_neglog10 was non-finite/<=0, falling back to 1")
@@ -96,6 +97,7 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
   ggsave(plot_path, plot = p, width = width, height = height, limitsize = FALSE)
   message(sprintf("  Saved: %s", plot_path))
 }
+
 
 pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE, color_cap_pct = NULL) {
   # Load required packages

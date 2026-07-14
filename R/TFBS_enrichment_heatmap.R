@@ -11,6 +11,8 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
 
   cell_width <- 8
   col_fontsize <- 10
+  col_label_rot <- 45
+  
   cell_height <- cell_width / aspect_ratio
   row_fontsize <- col_fontsize / aspect_ratio
   legend_height <- nrow(plot_data) * unit(cell_height, "mm") / 3
@@ -20,7 +22,7 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
     cluster_columns = FALSE, cluster_rows = FALSE,
     row_names_side = "left", row_names_gp = gpar(fontsize = row_fontsize),
     column_names_side = "bottom", column_names_gp = gpar(fontsize = col_fontsize),
-    column_names_rot = 45,
+    column_names_rot = col_label_rot,
     width = ncol(plot_data) * unit(cell_width, "mm"),
     height = nrow(plot_data) * unit(cell_height, "mm"),
     show_heatmap_legend = FALSE
@@ -36,10 +38,19 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
 
   # Get the dimensions of the heatmap and legend to set the PDF size
   pdf(NULL)
-  legend_width_mm <- convertWidth(grobWidth(lgd@grob), "mm", valueOnly = TRUE)
-  legend_gap_mm <- legend_width_mm + 5   # +5mm做一点缓冲,不再是拍脑袋的22
+  col_label_grob <- textGrob(
+    colnames(plot_data),
+    rot = col_label_rot,
+    gp = gpar(fontsize = col_fontsize)
+  )
+  bottom_pad <- max(convertHeight(grobHeight(col_label_grob), "mm", valueOnly = TRUE)) + 5
+  left_pad   <- max(convertWidth(grobWidth(col_label_grob), "mm", valueOnly = TRUE)) + 3
 
-  outer_padding <- unit(c(5, 0, 5, legend_gap_mm), "mm")
+  legend_width_mm <- convertWidth(grobWidth(lgd@grob), "mm", valueOnly = TRUE)
+  legend_gap_mm <- legend_width_mm + 5
+
+  outer_padding <- unit(c(bottom_pad, left_pad, 5, legend_gap_mm), "mm")
+
   ht_drawn2 <- draw(h, padding = outer_padding)
   pdf_width  <- convertWidth(ComplexHeatmap:::width(ht_drawn2), "inches", valueOnly = TRUE)
   pdf_height <- convertHeight(ComplexHeatmap:::height(ht_drawn2), "inches", valueOnly = TRUE)
