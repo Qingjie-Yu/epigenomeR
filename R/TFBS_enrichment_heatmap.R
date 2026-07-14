@@ -16,15 +16,10 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   legend_height <- nrow(plot_data) * unit(cell_height, "mm") / 3
 
   h <- Heatmap(
-    plot_data,
-    name = name,
-    col = col_fun,
-    cluster_columns = FALSE,
-    cluster_rows = FALSE,
-    row_names_side = "left",
-    row_names_gp = gpar(fontsize = row_fontsize),
-    column_names_side = "bottom",
-    column_names_gp = gpar(fontsize = col_fontsize),
+    plot_data, name = name, col = col_fun,
+    cluster_columns = FALSE, cluster_rows = FALSE,
+    row_names_side = "left", row_names_gp = gpar(fontsize = row_fontsize),
+    column_names_side = "bottom", column_names_gp = gpar(fontsize = col_fontsize),
     column_names_rot = 45,
     width = ncol(plot_data) * unit(cell_width, "mm"),
     height = nrow(plot_data) * unit(cell_height, "mm"),
@@ -32,20 +27,19 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
   )
 
   lgd <- Legend(
-    col_fun = col_fun,
-    title = name,
-    direction = "vertical",
+    col_fun = col_fun, title = name, direction = "vertical",
     title_position = "topcenter",
     title_gp = gpar(fontsize = 8),
     labels_gp = gpar(fontsize = 6),
     legend_height = legend_height
   )
 
-  legend_gap_mm <- 22
-  outer_padding <- unit(c(5, 0, 5, legend_gap_mm), "mm")
-
-  # Get acurate width and height of the heatmap for PDF output
+  # Get the dimensions of the heatmap and legend to set the PDF size
   pdf(NULL)
+  legend_width_mm <- convertWidth(grobWidth(lgd@grob), "mm", valueOnly = TRUE)
+  legend_gap_mm <- legend_width_mm + 5   # +5mm做一点缓冲,不再是拍脑袋的22
+
+  outer_padding <- unit(c(5, 0, 5, legend_gap_mm), "mm")
   ht_drawn2 <- draw(h, padding = outer_padding)
   pdf_width  <- convertWidth(ComplexHeatmap:::width(ht_drawn2), "inches", valueOnly = TRUE)
   pdf_height <- convertHeight(ComplexHeatmap:::height(ht_drawn2), "inches", valueOnly = TRUE)
@@ -53,7 +47,9 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
 
   pdf(out_path, width = pdf_width, height = pdf_height)
   draw(h, padding = outer_padding)
-  draw(lgd, x = unit(1, "npc") - unit(18, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
+  draw(lgd,
+       x = unit(1, "npc") - unit(legend_gap_mm - 4, "mm"), 
+       y = unit(0.5, "npc"), just = c("left", "center"))
   dev.off()
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }

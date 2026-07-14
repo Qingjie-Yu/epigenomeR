@@ -47,8 +47,8 @@ peak_profiling <- function(bedgraph_path, out_dir = "./", ref_genome = "hg38", m
     cat("\n", strrep("=", 40), "\n", sep = "")
     peak_path <- unlist(peak_result)
 
-    # distribution_dir <- file.path(out_dir, "genomic_distribution")
-    # peak_genomic_distribution(peak_path = peak_path, out_dir = distribution_dir, ref_genome = ref_genome, plot = plot)
+    distribution_dir <- file.path(out_dir, "genomic_distribution")
+    peak_genomic_distribution(peak_path = peak_path, out_dir = distribution_dir, ref_genome = ref_genome, plot = plot)
 
     pathway_dir <- file.path(out_dir, "pathway_annotation")
     peak_pathway_annotation(peak_path = peak_path, out_dir = pathway_dir, ref_genome = ref_genome, plot = plot)
