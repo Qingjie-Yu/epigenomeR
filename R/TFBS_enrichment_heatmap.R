@@ -41,19 +41,18 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
     legend_height = legend_height
   )
 
-  pdf_width <- convertWidth(
-    unit(ncol(plot_data) * cell_width, "mm") + unit(50, "mm"),
-    "inches",
-    valueOnly = TRUE
-  )
-  pdf_height <- convertHeight(
-    unit(nrow(plot_data) * cell_height, "mm") + unit(20, "mm"),
-    "inches",
-    valueOnly = TRUE
-  )
+  legend_gap_mm <- 22
+  outer_padding <- unit(c(5, 0, 5, legend_gap_mm), "mm")
+
+  # Get acurate width and height of the heatmap for PDF output
+  pdf(NULL)
+  ht_drawn2 <- draw(h, padding = outer_padding)
+  pdf_width  <- convertWidth(ComplexHeatmap:::width(ht_drawn2), "inches", valueOnly = TRUE)
+  pdf_height <- convertHeight(ComplexHeatmap:::height(ht_drawn2), "inches", valueOnly = TRUE)
+  dev.off()
 
   pdf(out_path, width = pdf_width, height = pdf_height)
-  draw(h, padding = unit(c(0, 0, 0, 22), "mm"))
+  draw(h, padding = outer_padding)
   draw(lgd, x = unit(1, "npc") - unit(18, "mm"), y = unit(0.5, "npc"), just = c("left", "center"))
   dev.off()
   cat(glue("Saved heatmap: {out_path}"), "\n")

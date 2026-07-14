@@ -1,4 +1,4 @@
-pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, cap_neglog10 = 50) {
+pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, cap_neglog10 = 50, color_cap_pct = NULL) {
   suppressPackageStartupMessages({
     library(dplyr)
     library(ggplot2)
@@ -19,9 +19,24 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
     dplyr::mutate(
       padj_safe     = dplyr::if_else(is.na(padj), NA_real_, pmax(padj, min_padj_for_color)),
       neglog10_padj = -log10(padj_safe),
-      neglog10_cap  = pmin(neglog10_padj, cap_neglog10),
       size_val      = log2(1 + pmax(fold, 0))
     )
+
+  # ---- determine color scale upper bound ----
+  if (!is.null(color_cap_pct)) {
+    stopifnot(is.numeric(color_cap_pct), color_cap_pct > 0, color_cap_pct <= 1)
+    cap_neglog10 <- stats::quantile(df_long$neglog10_padj, probs = color_cap_pct, na.rm = TRUE, names = FALSE)
+    message(sprintf("  color_cap_pct = %.3g -> cap_neglog10 set to %.2f (was fixed value before)",
+                    color_cap_pct, cap_neglog10))
+  }
+  # guard against degenerate cap (e.g. all padj == 1 or all identical)
+  if (!is.finite(cap_neglog10) || cap_neglog10 <= 0) {
+    cap_neglog10 <- 1
+    message("  cap_neglog10 was non-finite/<=0, falling back to 1")
+  }
+
+  df_long <- df_long |>
+    dplyr::mutate(neglog10_cap = pmin(neglog10_padj, cap_neglog10))
 
   pathway_levels <- df_long |>
     dplyr::group_by(pathway) |>
@@ -38,23 +53,19 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
   n_targets  <- length(table_list)
   n_pathways <- length(unique(df_long$pathway))
 
-  # longest pathway label → estimate y-axis margin
   max_pathway_nchar <- max(nchar(as.character(pathway_levels)))
-  yaxis_margin      <- max_pathway_nchar * 0.07  # ~0.07 inch per character
+  yaxis_margin      <- max_pathway_nchar * 0.07
 
-  # longest target label → estimate x-axis margin (rotated 45°)
   max_target_nchar <- max(nchar(names(table_list)))
   xaxis_margin     <- max_target_nchar * 0.07
 
-  # plot body: per-column and per-row cell size
-  col_width  <- 0.5   # inch per target column
-  row_height <- 0.25  # inch per pathway row
-  legend_width <- 2.5 # inch for right-side legend
+  col_width  <- 0.5
+  row_height <- 0.25
+  legend_width <- 2.5
 
   width  <- yaxis_margin + n_targets * col_width + legend_width
-  height <- xaxis_margin + n_pathways * row_height + 0.5  # 0.5 for top margin
+  height <- xaxis_margin + n_pathways * row_height + 0.5
 
-  # floor values to avoid tiny PDFs
   width  <- max(width,  5)
   height <- max(height, 4)
 
@@ -86,7 +97,7 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
   message(sprintf("  Saved: %s", plot_path))
 }
 
-pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE) {
+pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE, color_cap_pct = NULL) {
   # Load required packages
   suppressPackageStartupMessages({
     library(rGREAT)
@@ -140,6 +151,6 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
 
   # Dot/Bubble plot
   if (plot) {
-    pathway_annotation_plot_bubble(table_list=table_list, out_dir=out_dir)
+    pathway_annotation_plot_bubble(table_list=table_list, out_dir=out_dir, color_cap_pct=color_cap_pct)
   }
 }
