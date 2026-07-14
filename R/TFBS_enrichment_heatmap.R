@@ -11,11 +11,10 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
 
   cell_width <- 8
   col_fontsize <- 10
-  col_label_rot <- 45
-  
   cell_height <- cell_width / aspect_ratio
   row_fontsize <- col_fontsize / aspect_ratio
   legend_height <- nrow(plot_data) * unit(cell_height, "mm") / 3
+  col_label_rot <- 45
 
   h <- Heatmap(
     plot_data, name = name, col = col_fun,
@@ -25,42 +24,30 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
     column_names_rot = col_label_rot,
     width = ncol(plot_data) * unit(cell_width, "mm"),
     height = nrow(plot_data) * unit(cell_height, "mm"),
-    show_heatmap_legend = FALSE
+    show_heatmap_legend = FALSE   # 依然自己构造legend,但不再自己摆位置
   )
 
   lgd <- Legend(
     col_fun = col_fun, title = name, direction = "vertical",
     title_position = "topcenter",
-    title_gp = gpar(fontsize = 8),
-    labels_gp = gpar(fontsize = 6),
+    title_gp = gpar(fontsize = 8), labels_gp = gpar(fontsize = 6),
     legend_height = legend_height
   )
 
-  # Get the dimensions of the heatmap and legend to set the PDF size
   pdf(NULL)
-  col_label_grob <- textGrob(
-    colnames(plot_data),
-    rot = col_label_rot,
-    gp = gpar(fontsize = col_fontsize)
-  )
-  bottom_pad <- max(convertHeight(grobHeight(col_label_grob), "mm", valueOnly = TRUE)) + 5
-  left_pad   <- max(convertWidth(grobWidth(col_label_grob), "mm", valueOnly = TRUE)) + 3
-
-  legend_width_mm <- convertWidth(grobWidth(lgd@grob), "mm", valueOnly = TRUE)
-  legend_gap_mm <- legend_width_mm + 5
-
-  outer_padding <- unit(c(bottom_pad, left_pad, 5, legend_gap_mm), "mm")
-
-  ht_drawn2 <- draw(h, padding = outer_padding)
+  ht_drawn2 <- draw(h,
+                     heatmap_legend_list = list(lgd),
+                     heatmap_legend_side = "right",
+                     padding = unit(c(5, 5, 5, 5), "mm"))  # 只留最基础的四周呼吸空间
   pdf_width  <- convertWidth(ComplexHeatmap:::width(ht_drawn2), "inches", valueOnly = TRUE)
   pdf_height <- convertHeight(ComplexHeatmap:::height(ht_drawn2), "inches", valueOnly = TRUE)
   dev.off()
 
   pdf(out_path, width = pdf_width, height = pdf_height)
-  draw(h, padding = outer_padding)
-  draw(lgd,
-       x = unit(1, "npc") - unit(legend_gap_mm - 4, "mm"), 
-       y = unit(0.5, "npc"), just = c("left", "center"))
+  draw(h,
+       heatmap_legend_list = list(lgd),
+       heatmap_legend_side = "right",
+       padding = unit(c(5, 5, 5, 5), "mm"))
   dev.off()
   cat(glue("Saved heatmap: {out_path}"), "\n")
 }
@@ -182,7 +169,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   odds_ratio_log2 <- log2(odds_ratio_mat)
   max_abs_val <- max(abs(odds_ratio_log2), na.rm = TRUE)
   col_fun <- colorRamp2(c(-max_abs_val, 0, max_abs_val), c("#3155C3", "white", "#AF0525"))
-  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment.pdf"), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster)
+  draw_heatmap(data = odds_ratio_log2, out_path = file.path(out_dir, "TFBS_enrichment.pdf"), col_fun = col_fun, name = "log2(OR)", apply_cluster = apply_cluster)
 
   # second heatmap (top n)
   if (!is.null(top_n) && is.numeric(top_n) && top_n > 0) {
@@ -190,7 +177,7 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
     top_tfbs <- names(head(sort(cv, decreasing = TRUE), top_n))
     odds_ratio_log2_topn <- odds_ratio_log2[top_tfbs, , drop = FALSE]
     cat(glue("Selected top {top_n} TFBS based on coefficient of variation"), "\n")
-    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_enrichment_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(Odds Ratio)", apply_cluster = apply_cluster, aspect_ratio = 1)
+    draw_heatmap(data = odds_ratio_log2_topn, out_path = file.path(out_dir, paste0("TFBS_enrichment_top", top_n, ".pdf")), col_fun = col_fun, name = "log2(OR)", apply_cluster = apply_cluster, aspect_ratio = 1)
   }
 
   # save .csv

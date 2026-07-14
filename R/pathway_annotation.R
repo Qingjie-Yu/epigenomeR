@@ -1,4 +1,4 @@
-pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, cap_pct = NULL) {
+pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, color_cap_pct = NULL) {
   suppressPackageStartupMessages({
     library(dplyr)
     library(ggplot2)
@@ -23,13 +23,13 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
     )
 
   # determine color scale upper bound
-  if (is.null(cap_pct)) {
+  if (is.null(color_cap_pct)) {
     cap_neglog10 <- max(df_long$neglog10_padj, na.rm = TRUE)
-    message(sprintf("  cap_pct not set -> using max(neglog10_padj) = %.2f as color cap", cap_neglog10))
+    message(sprintf("  color_cap_pct not set -> using max(neglog10_padj) = %.2f as color cap", cap_neglog10))
   } else {
-    stopifnot(is.numeric(cap_pct), cap_pct > 0, cap_pct <= 1)
-    cap_neglog10 <- stats::quantile(df_long$neglog10_padj, probs = cap_pct, na.rm = TRUE, names = FALSE)
-    message(sprintf("  cap_pct = %.3g -> cap_neglog10 set to %.2f", cap_pct, cap_neglog10))
+    stopifnot(is.numeric(color_cap_pct), color_cap_pct > 0, color_cap_pct <= 1)
+    cap_neglog10 <- stats::quantile(df_long$neglog10_padj, probs = color_cap_pct, na.rm = TRUE, names = FALSE)
+    message(sprintf("  color_cap_pct = %.3g -> cap_neglog10 set to %.2f", color_cap_pct, cap_neglog10))
   }
   if (!is.finite(cap_neglog10) || cap_neglog10 <= 0) {
     cap_neglog10 <- 1
