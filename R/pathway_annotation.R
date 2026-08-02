@@ -1,4 +1,4 @@
-pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, color_cap_pct = NULL) {
+pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_color = 1e-300, color_cap_pct = 0.99) {
   suppressPackageStartupMessages({
     library(dplyr)
     library(ggplot2)
@@ -99,7 +99,7 @@ pathway_annotation_plot_bubble <- function(table_list, out_dir, min_padj_for_col
 }
 
 
-pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE, color_cap_pct = NULL) {
+pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigdb_collection = "H", plot = TRUE, color_cap_pct = 0.99) {
   # Load required packages
   suppressPackageStartupMessages({
     library(rGREAT)
