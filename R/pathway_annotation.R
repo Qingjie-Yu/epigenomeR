@@ -117,20 +117,18 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
   BPPARAM <- get_BPPARAM()
 
   # Parameter validation
-  species <- switch(ref_genome,
-    hg38 = "Homo sapiens",
-    mm10 = "Mus musculus",
+  genome_map <- list(
+    hg38 = list(species = "Homo sapiens", db_species = "HS",
+                tss_source = "TxDb.Hsapiens.UCSC.hg38.knownGene"),
+    mm10 = list(species = "Mus musculus", db_species = "MM",
+                tss_source = "TxDb.Mmusculus.UCSC.mm10.knownGene")
+  )
+  if (!ref_genome %in% names(genome_map)) {
     stop("Unsupported genome: ", ref_genome)
-  )
-  db_species <- switch(ref_genome,
-    hg38 = "HS",
-    mm10 = "MM",
-    stop("Unsupported genome: ", ref_genome)
-  )
-  tss_source <- switch(ref_genome,
-    hg38 = "TxDb.Hsapiens.UCSC.hg38.knownGene",
-    mm10 = "TxDb.Mmusculus.UCSC.mm10.knownGene"
-  )
+  }
+  species    <- genome_map[[ref_genome]]$species
+  db_species <- genome_map[[ref_genome]]$db_species
+  tss_source <- genome_map[[ref_genome]]$tss_source
 
   # collection mapping
   msigdb_collection_map <- data.frame(
@@ -158,7 +156,7 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
     if (is.na(mapped)) {
       stop(sprintf(
         "Collection '%s' has no %s-native equivalent (checked msigdb_collection_map). Available collections: %s",
-        requested_collection, db_species, paste(valid, collapse = ", ")
+        requested_collection, db_species, paste(unique(valid), collapse = ", ")
       ))
     }
 
@@ -169,9 +167,9 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
     mapped
   }
 
-  collection <- resolve_msigdb_collection(db_species, collection)
+  collection <- resolve_msigdb_collection(db_species, msigdb_collection)
   message(sprintf("  Using collection '%s' (requested: '%s', db_species: '%s')",
-                  collection, collection, db_species))
+                  collection, msigdb_collection, db_species))
 
   # Run rGREAT
   gene_sets_data <- msigdbr(species = species, db_species = db_species, collection = collection) |>
@@ -184,7 +182,7 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
     res <- great(gr, gene_sets = gene_sets_data, tss_source = tss_source)
     tb <- res@table |>
       dplyr::transmute(
-        pathway = if (strip_prefix) str_replace(id, "^HALLMARK_", "") else id,
+        pathway = if (collection %in% c("H", "MH")) str_replace(id, "^HALLMARK_", "") else id,
         hits_region = observed_region_hits,
         fold = fold_enrichment,
         p = p_value,
