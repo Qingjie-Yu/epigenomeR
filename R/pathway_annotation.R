@@ -122,13 +122,61 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
     mm10 = "Mus musculus",
     stop("Unsupported genome: ", ref_genome)
   )
+  db_species <- switch(ref_genome,
+    hg38 = "HS",
+    mm10 = "MM",
+    stop("Unsupported genome: ", ref_genome)
+  )
   tss_source <- switch(ref_genome,
     hg38 = "TxDb.Hsapiens.UCSC.hg38.knownGene",
     mm10 = "TxDb.Mmusculus.UCSC.mm10.knownGene"
   )
 
+  # collection mapping
+  msigdb_collection_map <- data.frame(
+    hs = c("H",  "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"),
+    mm = c("MH", "M1", "M2", "M3", NA,   "M5", NA,   NA,   "M8"),
+    stringsAsFactors = FALSE
+  )
+  resolve_msigdb_collection <- function(db_species, requested_collection) {
+    valid <- msigdbr_collections(db_species = db_species)$collection
+
+    if (requested_collection %in% valid) {
+      return(requested_collection)
+    }
+
+    other_species <- if (db_species == "MM") "hs" else "mm"
+    self_species  <- if (db_species == "MM") "mm" else "hs"
+
+    idx <- match(requested_collection, msigdb_collection_map[[other_species]])
+    if (is.na(idx)) {
+      stop(sprintf(
+        "Collection '%s' is not available for db_species '%s', and no mapping exists in msigdb_collection_map. Available collections: %s",
+        requested_collection, db_species, paste(valid, collapse = ", ")
+      ))
+    }
+
+    mapped <- msigdb_collection_map[[self_species]][idx]
+    if (is.na(mapped)) {
+      stop(sprintf(
+        "Collection '%s' has no %s-native equivalent (checked msigdb_collection_map). Available collections: %s",
+        requested_collection, db_species, paste(valid, collapse = ", ")
+      ))
+    }
+
+    warning(sprintf(
+      "Collection '%s' not found natively for db_species '%s'; substituting mapped equivalent '%s' instead.",
+      requested_collection, db_species, mapped
+    ))
+    mapped
+  }
+
+  collection <- resolve_msigdb_collection(db_species, collection)
+  message(sprintf("  Using collection '%s' (requested: '%s', db_species: '%s')",
+                  collection, collection, db_species))
+
   # Run rGREAT
-  gene_sets_data <- msigdbr(species = species, collection = msigdb_collection) |>
+  gene_sets_data <- msigdbr(species = species, db_species = db_species, collection = collection) |>
   (\(df) split(as.character(df$ncbi_gene), df$gs_name))()
   message(sprintf("  Loaded %d gene sets from MSigDB", length(gene_sets_data)))
 
@@ -138,7 +186,7 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
     res <- great(gr, gene_sets = gene_sets_data, tss_source = tss_source)
     tb <- res@table |>
       dplyr::transmute(
-        pathway = str_replace(id, "^HALLMARK_", ""),
+        pathway = if (strip_prefix) str_replace(id, "^HALLMARK_", "") else id,
         hits_region = observed_region_hits,
         fold = fold_enrichment,
         p = p_value,
