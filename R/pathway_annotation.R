@@ -134,20 +134,18 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
 
   # collection mapping
   msigdb_collection_map <- data.frame(
-    hs = c("H",  "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"),
-    mm = c("MH", "M1", "M2", "M3", NA,   "M5", NA,   NA,   "M8"),
+    HS = c("H",  "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"),
+    MM = c("MH", "M1", "M2", "M3", NA,   "M5", NA,   NA,   "M8"),
     stringsAsFactors = FALSE
   )
-  resolve_msigdb_collection <- function(db_species, requested_collection) {
-    valid <- msigdbr_collections(db_species = db_species)$collection
 
+  resolve_msigdb_collection <- function(db_species, requested_collection) {
+    valid <- msigdbr_collections(db_species = db_species)$gs_collection
     if (requested_collection %in% valid) {
       return(requested_collection)
     }
 
-    other_species <- if (db_species == "MM") "hs" else "mm"
-    self_species  <- if (db_species == "MM") "mm" else "hs"
-
+    other_species <- setdiff(c("HS", "MM"), db_species)
     idx <- match(requested_collection, msigdb_collection_map[[other_species]])
     if (is.na(idx)) {
       stop(sprintf(
@@ -156,7 +154,7 @@ pathway_annotation <- function(query, out_dir = "./", ref_genome = "hg38", msigd
       ))
     }
 
-    mapped <- msigdb_collection_map[[self_species]][idx]
+    mapped <- msigdb_collection_map[[db_species]][idx]
     if (is.na(mapped)) {
       stop(sprintf(
         "Collection '%s' has no %s-native equivalent (checked msigdb_collection_map). Available collections: %s",
