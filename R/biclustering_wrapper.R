@@ -1,22 +1,32 @@
 # Biclustering Analysis Wrapper
 #
 # Performs biclustering analysis on chromatin accessibility count matrices,
-# with optional filtering, k-means clustering, and gene annotation of genomic regions.
+# with configurable normalization, optional region filtering, k-means
+# clustering, and gene annotation of genomic regions.
 #
 # Parameters:
 #   cm_path: Path to the count matrix `.feather` file or a vector of paths to
 #            multiple count matrix files to be merged.
 #   out_dir: Directory to save all output files (cluster tables, filtered matrices,
 #            annotation plots).
-#   apply_filter: Logical. Controls whether to further filter genomic regions.
-#       - When the genome was segmented into equal-sized bins
+#   transformations: Character vector specifying the normalization/transformation
+#            steps to apply to the count matrix, in order.
+#            Default: c("remove0", "libnorm", "log2p1")
+#       - "remove0": remove regions with all-zero counts
+#       - "libnorm": library-size normalization
+#       - "log2p1": log2(x + 1) transformation
+#   filter_method: One of "top_pct", "hvr", or "none". Controls how genomic
+#            regions are filtered prior to biclustering.
+#       - "top_pct": keep the union of top-percentile regions across CRF pairs.
+#         Use this when the genome was segmented into equal-sized bins
 #         (i.e., the count matrix was built using a numeric `regions` argument),
-#         this should be TRUE so that low-information or uninformative bins can be removed.
-#       - When the user supplied specific genomic intervals of interest
-#         (i.e., the count matrix was built using a region file path),
-#         this should be FALSE because no additional filtering is needed.
+#         so that low-information or uninformative bins can be removed.
+#       - "hvr": filter to highly variable regions instead.
+#       - "none": skip filtering entirely. Use this when the user supplied
+#         specific genomic intervals of interest (i.e., the count matrix was
+#         built using a region file path), since no additional filtering is needed.
 #   row_km: Number of k-means clusters for rows (genomic regions). Default: 15
-#   col_km: Number of k-means clusters for columns (CRF pairs). Default: 3
+#   col_km: Number of k-means clusters for columns (CRF pairs). Default: 6
 #   apply_annotation: Logical. Controls whether to annotate genomic regions to nearby genes.
 #       - When the genome was segmented into bins (numeric `regions`), this should be TRUE,
 #         since bins lack inherent biological meaning and benefit from gene-level annotation.
@@ -31,8 +41,7 @@
 #        - Options include: "genic", "ccre", "cpg", "repeat"
 #   plot: Logical. Whether to generate diagnostic plots during filtering and biclustering steps. Default: TRUE
 
-
-biclustering_wrapper <- function(cm_path, out_dir, transformations = c("remove0", "libnorm", "log2p1", "qnorm"), filter_method = c("top_pct", "hvr", "none"), row_km = 15, col_km = 6, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
+biclustering_wrapper <- function(cm_path, out_dir, transformations = c("remove0", "libnorm", "log2p1"), filter_method = c("top_pct", "hvr", "none"), row_km = 15, col_km = 6, apply_annotation = TRUE, ref_genome = "hg38", ref_source = "knownGene", distributions = c("genic", "ccre"), plot = TRUE) {
   filter_method <- match.arg(filter_method)
   
   # Step1: Merge all the count matrix files

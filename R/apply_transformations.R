@@ -46,13 +46,13 @@ transform_mat <- function(mat, transformations = c("libnorm", "log2p1")) {
 #
 # Parameters:
 #   cm_path: Path to input count matrix (.feather file)
-#   transformations: Character vector of transformation steps to apply in order. Default: c("remove0", "libnorm", "log2p1", "qnorm")
+#   transformations: Character vector of transformation steps to apply in order. Default: c("remove0", "libnorm", "log2p1")
 #   out_dir: Directory path for saving output files
 #   save_each_step: Logical. If TRUE, save intermediate results after each transformation. Default: FALSE
 #
 # Output: Saves transformed count matrix as .feather file with "_transformed" suffix.  Returns the full output file path (character).
 
-apply_transformations <- function(cm_path, out_dir = "./", transformations = c("libnorm", "log2p1"), save_each_step = FALSE) {
+apply_transformations <- function(cm_path, out_dir = "./", transformations = c("remove0", "libnorm", "log2p1"), save_each_step = FALSE) {
   suppressPackageStartupMessages({
     library(arrow); library(tibble)
     library(matrixStats); library(preprocessCore)
