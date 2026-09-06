@@ -106,10 +106,10 @@ biclustering_heatmap <- function(mat, row_cluster_file_path, col_cluster_file_pa
 
   mat <- mat[row_order, col_order]
   if (is.null(lower_range) || lower_range == "") {
-    lower_range <- min(mat, na.rm = TRUE)
+      lower_range <- quantile(mat, 0.01, na.rm = TRUE)
   }
   if (is.null(upper_range) || upper_range == "") {
-    upper_range <- max(mat, na.rm = TRUE)
+      upper_range <- quantile(mat, 0.99, na.rm = TRUE)
   }
   avg <- (lower_range + upper_range) / 2
   col_fun <- colorRamp2(c(lower_range, avg, upper_range), c("#3155C3", "white", "#AF0525"))
