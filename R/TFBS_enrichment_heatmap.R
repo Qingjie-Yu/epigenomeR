@@ -65,7 +65,7 @@ draw_heatmap <- function(data, out_path, col_fun, name, apply_cluster = FALSE, a
 #         log2 odds ratio matrix: TFBS_odds_ratio_log2.csv
 #         FDR matrix: TFBS_FDR.csv
 
-TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, selected_tfs = NULL, apply_cluster = FALSE) {
+TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, selected_tfs = NULL, apply_cluster = FALSE, apply_filter = FALSE) {
   # load library
   suppressPackageStartupMessages({
     library(ComplexHeatmap)
@@ -117,17 +117,13 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
     }
     df <- read.table(file_path, sep = "\t", header = TRUE, row.names = 1)
 
-    if (!all(rownames(df) == tfbs_ids)) {
+    if (!setequal(rownames(df), tfbs_ids)) {
       warning(glue("TFBS IDs mismatch in {sample_label}, attempting to match by row names"))
-      common_ids <- intersect(tfbs_ids, rownames(df))
-      odds_ratio_mat[common_ids, i] <- df[common_ids, "odds_ratio"]
-      FDR_mat[common_ids, i] <- df[common_ids, "FDR"]
-      target_hit_mat[common_ids, i] <- df[common_ids, "target_hit"]
-    } else {
-      odds_ratio_mat[, i] <- df$odds_ratio
-      FDR_mat[, i] <- df$FDR
-      target_hit_mat[, i] <- df$target_hit
     }
+    common_ids <- intersect(tfbs_ids, rownames(df))
+    odds_ratio_mat[common_ids, i] <- df[common_ids, "odds_ratio"]
+    FDR_mat[common_ids, i] <- df[common_ids, "FDR"]
+    target_hit_mat[common_ids, i] <- df[common_ids, "target_hit"]
   }
 
   # remove row/columns with all NAs
@@ -138,13 +134,17 @@ TFBS_enrichment_heatmap <- function(tsv_path, label, out_dir, top_n = NULL, sele
   target_hit_mat <- target_hit_mat[valid_rows, valid_cols, drop = FALSE]
 
   # filter
-  target_hit_thresh <- quantile(target_hit_mat, 0.1, na.rm = TRUE)
-  keep_tfbs <- rowSums(odds_ratio_mat >= 2, na.rm = TRUE) >= 1 &
-    rowSums(FDR_mat <= 0.05, na.rm = TRUE) >= 1 &
-    rowSums(target_hit_mat >= target_hit_thresh, na.rm = TRUE) >= 1
-  odds_ratio_mat <- odds_ratio_mat[keep_tfbs, , drop = FALSE]
-  FDR_mat <- FDR_mat[keep_tfbs, , drop = FALSE]
-  cat(glue("Filtered to {sum(keep_tfbs)} TFBS from {length(keep_tfbs)} total"), "\n")
+  if (apply_filter) {
+    target_hit_thresh <- quantile(target_hit_mat, 0.1, na.rm = TRUE)
+    keep_tfbs <- rowSums(odds_ratio_mat >= 2, na.rm = TRUE) >= 1 &
+      rowSums(FDR_mat <= 0.05, na.rm = TRUE) >= 1 &
+      rowSums(target_hit_mat >= target_hit_thresh, na.rm = TRUE) >= 1
+    odds_ratio_mat <- odds_ratio_mat[keep_tfbs, , drop = FALSE]
+    FDR_mat <- FDR_mat[keep_tfbs, , drop = FALSE]
+    cat(glue("Filtered to {sum(keep_tfbs)} TFBS from {length(keep_tfbs)} total"), "\n")
+  } else {
+    cat(glue("Significance filter skipped, using all {nrow(odds_ratio_mat)} TFBS"), "\n")
+  }
 
   # apply selected_tfs filter if specified
   if (!is.null(selected_tfs)) {
